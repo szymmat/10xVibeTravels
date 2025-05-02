@@ -115,5 +115,4 @@ Należy użyć `ILogger` do rejestrowania błędów.
     f.  Obsłużyć potencjalne wyjątki z serwisu i zwrócić odpowiednie kody statusu (`400`, `403`, `404`, `500`, `503`).
     g.  Zwrócić `201 Created` z listą `PlanProposalResponse` w przypadku sukcesu.
 6.  **Konfiguracja:** Upewnić się, że `IOpenRouterService` jest poprawnie zarejestrowany w kontenerze DI i skonfigurowany (w tym klucz API).
-7.  **Testowanie:** Napisać testy jednostkowe dla `PlanGenerationService` (mockując zależności) oraz testy integracyjne dla endpointu API.
-8.  **Logowanie:** Zweryfikować, czy logi są poprawnie zapisywane dla różnych scenariuszy (sukces, błędy walidacji, błędy AI, błędy bazy danych). 
+7.  **Logowanie:** Zweryfikować, czy logi są poprawnie zapisywane dla różnych scenariuszy (sukces, błędy walidacji, błędy AI, błędy bazy danych). 

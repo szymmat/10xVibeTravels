@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace _10xVibeTravels.Features.PlanProposals.Requests;
+namespace Requests;
 
 public class GeneratePlanProposalRequest
 {
@@ -15,4 +15,4 @@ public class GeneratePlanProposalRequest
 
     [Range(0, (double)decimal.MaxValue)]
     public decimal? Budget { get; set; }
-} 
+}

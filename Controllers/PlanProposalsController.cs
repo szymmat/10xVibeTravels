@@ -1,11 +1,11 @@
-using _10xVibeTravels.Features.PlanProposals.Exceptions;
-using _10xVibeTravels.Features.PlanProposals.Requests;
-using _10xVibeTravels.Features.PlanProposals.Services;
+using _10xVibeTravels.Exceptions;
+using _10xVibeTravels.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Requests;
 using System.Security.Claims;
 
-namespace _10xVibeTravels.Features.PlanProposals.Controllers;
+namespace _10xVibeTravels.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]

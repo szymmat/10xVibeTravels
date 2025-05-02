@@ -1,7 +1,7 @@
 using _10xVibeTravels.Components;
 using _10xVibeTravels.Components.Account;
 using _10xVibeTravels.Data;
-using _10xVibeTravels.Features.PlanProposals.Services;
+using _10xVibeTravels.Interfaces;
 using _10xVibeTravels.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -47,6 +47,11 @@ namespace _10xVibeTravels
             // Register custom application services
             builder.Services.AddScoped<IPlanGenerationService, PlanGenerationService>();
             builder.Services.AddScoped<IOpenRouterService, MockOpenRouterService>();
+
+            // Register dictionary services
+            builder.Services.AddScoped<IIntensityService, IntensityService>();
+            builder.Services.AddScoped<IInterestService, InterestService>();
+            builder.Services.AddScoped<ITravelStyleService, TravelStyleService>();
 
             // Add API Controllers support (needed for Swagger endpoint discovery)
             builder.Services.AddControllers();

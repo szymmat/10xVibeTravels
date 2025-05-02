@@ -1,4 +1,4 @@
-namespace _10xVibeTravels.Features.PlanProposals.Responses;
+namespace Responses;
 
 public class PlanProposalResponse
 {
@@ -11,4 +11,4 @@ public class PlanProposalResponse
     public string Content { get; set; } = null!;
     public DateTime CreatedAt { get; set; }
     public DateTime ModifiedAt { get; set; }
-} 
+}

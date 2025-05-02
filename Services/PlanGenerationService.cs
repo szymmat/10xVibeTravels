@@ -1,15 +1,12 @@
 using _10xVibeTravels.Data;
-using _10xVibeTravels.Features.PlanProposals.Exceptions;
-using _10xVibeTravels.Features.PlanProposals.Requests;
-using _10xVibeTravels.Features.PlanProposals.Responses;
-using _10xVibeTravels.Services;
-using Microsoft.AspNetCore.Identity;
+using _10xVibeTravels.Interfaces;
+using _10xVibeTravels.Exceptions;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using System.Linq;
+using Requests;
+using Responses;
 using System.Text;
 
-namespace _10xVibeTravels.Features.PlanProposals.Services;
+namespace _10xVibeTravels.Services;
 
 public class PlanGenerationService : IPlanGenerationService
 {

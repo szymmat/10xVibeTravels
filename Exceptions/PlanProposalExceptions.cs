@@ -1,10 +1,10 @@
-namespace _10xVibeTravels.Features.PlanProposals.Exceptions;
+namespace _10xVibeTravels.Exceptions;
 
 // Base exception for this feature
 public abstract class PlanProposalException : Exception
 {
     protected PlanProposalException(string message) : base(message) { }
-    
+
     // Add overload to accept inner exception
     protected PlanProposalException(string message, Exception? innerException) : base(message, innerException) { }
 }
@@ -36,6 +36,6 @@ public class BudgetNotAvailableException : PlanProposalException
 // 503 Service Unavailable
 public class AiServiceException : PlanProposalException
 {
-    public AiServiceException(string message, Exception? innerException = null) 
+    public AiServiceException(string message, Exception? innerException = null)
         : base($"Error communicating with the AI service: {message}", innerException) { }
-} 
+}
