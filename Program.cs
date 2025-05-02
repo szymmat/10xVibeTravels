@@ -1,9 +1,12 @@
 using _10xVibeTravels.Components;
 using _10xVibeTravels.Components.Account;
 using _10xVibeTravels.Data;
+using _10xVibeTravels.Features.PlanProposals.Services;
+using _10xVibeTravels.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
 
 namespace _10xVibeTravels
 {
@@ -41,12 +44,31 @@ namespace _10xVibeTravels
 
             builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
+            // Register custom application services
+            builder.Services.AddScoped<IPlanGenerationService, PlanGenerationService>();
+            builder.Services.AddScoped<IOpenRouterService, MockOpenRouterService>();
+
+            // Add API Controllers support (needed for Swagger endpoint discovery)
+            builder.Services.AddControllers();
+
+            // Add Swagger services
+            builder.Services.AddEndpointsApiExplorer();
+            builder.Services.AddSwaggerGen(options =>
+            {
+                options.SwaggerDoc("v1", new OpenApiInfo { Title = "10xVibeTravels API", Version = "v1" });
+            });
+
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
                 app.UseMigrationsEndPoint();
+                app.UseSwagger();
+                app.UseSwaggerUI(options =>
+                {
+                    options.SwaggerEndpoint("/swagger/v1/swagger.json", "10xVibeTravels API V1");
+                });
             }
             else
             {
@@ -65,6 +87,9 @@ namespace _10xVibeTravels
 
             // Add additional endpoints required by the Identity /Account Razor components.
             app.MapAdditionalIdentityEndpoints();
+
+            // Map API controllers
+            app.MapControllers();
 
             app.Run();
         }
