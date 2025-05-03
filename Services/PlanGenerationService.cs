@@ -2,8 +2,8 @@ using _10xVibeTravels.Data;
 using _10xVibeTravels.Interfaces;
 using _10xVibeTravels.Exceptions;
 using Microsoft.EntityFrameworkCore;
-using Requests;
-using Responses;
+using _10xVibeTravels.Requests;
+using _10xVibeTravels.Responses;
 using System.Text;
 
 namespace _10xVibeTravels.Services;

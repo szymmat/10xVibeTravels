@@ -59,6 +59,9 @@ namespace _10xVibeTravels
             // Register Note specific services
             builder.Services.AddScoped<INoteService, NoteService>();
 
+            // Register Plan specific services (using new locations)
+            builder.Services.AddScoped<IPlanService, PlanService>();
+
             // Needed for accessing HttpContext outside of controllers (e.g., in services)
             builder.Services.AddHttpContextAccessor();
 

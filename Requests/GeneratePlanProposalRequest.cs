@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Requests;
+namespace _10xVibeTravels.Requests;
 
 public class GeneratePlanProposalRequest
 {

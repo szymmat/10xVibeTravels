@@ -1,8 +1,9 @@
 using _10xVibeTravels.Exceptions;
 using _10xVibeTravels.Interfaces;
+using _10xVibeTravels.Responses;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Requests;
+using _10xVibeTravels.Requests;
 using System.Security.Claims;
 
 namespace _10xVibeTravels.Controllers;
@@ -35,7 +36,7 @@ public class PlanProposalsController : ControllerBase
     /// <response code="500">If an internal server error occurs during processing or database saving.</response>
     /// <response code="503">If the external AI service is unavailable or returns an error.</response>
     [HttpPost]
-    [ProducesResponseType(typeof(List<Responses.PlanProposalResponse>), 201)]
+    [ProducesResponseType(typeof(List<PlanProposalResponse>), 201)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]

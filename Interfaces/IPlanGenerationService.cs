@@ -1,5 +1,5 @@
-using Requests;
-using Responses;
+using _10xVibeTravels.Responses;
+using _10xVibeTravels.Requests;
 
 namespace _10xVibeTravels.Interfaces;
 
