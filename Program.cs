@@ -47,6 +47,7 @@ namespace _10xVibeTravels
             // Register custom application services
             builder.Services.AddScoped<IPlanGenerationService, PlanGenerationService>();
             builder.Services.AddScoped<IOpenRouterService, MockOpenRouterService>();
+            builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 
             // Register dictionary services
             builder.Services.AddScoped<IIntensityService, IntensityService>();
