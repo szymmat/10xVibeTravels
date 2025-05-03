@@ -19,7 +19,7 @@ Do interakcji z użytkownikiem wykorzystywane są modale (dla tworzenia/edycji d
 *   **UX, dostępność, bezpieczeństwo:** Zapewniane przez domyślną implementację ASP.NET Core Identity.
 
 ### 2.2. Dashboard
-*   **Nazwa widoku:** `Dashboard.razor`
+*   **Nazwa widoku:** `Home.razor`
 *   **Ścieżka widoku:** `/` (dla zalogowanych użytkowników)
 *   **Główny cel:** Zapewnienie centralnego punktu startowego z przeglądem aktywności i szybkim dostępem do akcji.
 *   **Kluczowe informacje:**
