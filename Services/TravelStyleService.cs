@@ -7,23 +7,21 @@ namespace _10xVibeTravels.Services
 {
     public class TravelStyleService : ITravelStyleService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
 
-        public TravelStyleService(ApplicationDbContext context)
+        public TravelStyleService(IDbContextFactory<ApplicationDbContext> contextFactory)
         {
-            _context = context;
+            _contextFactory = contextFactory;
         }
 
         public async Task<IEnumerable<TravelStyleDto>> GetAllAsync()
         {
-            var travelStyles = await _context.TravelStyles.ToListAsync();
-            
-            // TODO: Replace manual mapping with AutoMapper
-            return travelStyles.Select(t => new TravelStyleDto
-            {
-                Id = t.Id,
-                Name = t.Name
-            });
+            await using var context = await _contextFactory.CreateDbContextAsync();
+
+            return await context.TravelStyles
+                .AsNoTracking()
+                .Select(ts => new TravelStyleDto { Id = ts.Id, Name = ts.Name })
+                .ToListAsync();
         }
     }
 } 

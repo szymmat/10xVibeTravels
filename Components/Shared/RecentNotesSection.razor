@@ -1,0 +1,26 @@
+@using _10xVibeTravels.Dtos
+@using _10xVibeTravels.Components.Shared
+
+@if (Notes == null || !Notes.Any())
+{
+    <EmptyState Message="Brak notatek do wyświetlenia." />
+}
+else
+{
+    <ul class="list-group list-group-flush">
+        @foreach (var note in Notes)
+        {
+            <li class="list-group-item">
+                <NavLink href=@($"/notes/@{note.Id}")>@note.Title</NavLink>
+                @* Można dodać np. datę modyfikacji, jeśli potrzeba: <small class="text-muted float-end">@note.ModifiedAt.ToShortDateString()</small> *@
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    /// <summary>
+    /// Lista ostatnich notatek do wyświetlenia.
+    /// </summary>
+    [Parameter] public List<NoteListItemDto>? Notes { get; set; }
+} 

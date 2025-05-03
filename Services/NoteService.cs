@@ -5,17 +5,18 @@ using _10xVibeTravels.Exceptions;
 using _10xVibeTravels.Interfaces;
 using _10xVibeTravels.Requests;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 
 namespace _10xVibeTravels.Services;
 
 public class NoteService : INoteService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
     private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public NoteService(ApplicationDbContext context, IHttpContextAccessor httpContextAccessor)
+    public NoteService(IDbContextFactory<ApplicationDbContext> contextFactory, IHttpContextAccessor httpContextAccessor)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _httpContextAccessor = httpContextAccessor;
     }
 
@@ -33,6 +34,8 @@ public class NoteService : INoteService
 
     public async Task<NoteDto> CreateNoteAsync(string userId, CreateNoteRequest request)
     {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
         var note = new Note
         {
             Id = Guid.NewGuid(), // Generate new ID
@@ -43,8 +46,8 @@ public class NoteService : INoteService
             ModifiedAt = DateTime.UtcNow // Use DateTime
         };
 
-        _context.Notes.Add(note);
-        await _context.SaveChangesAsync();
+        context.Notes.Add(note);
+        await context.SaveChangesAsync();
 
         // Map entity to DTO for the response
         return new NoteDto(
@@ -58,7 +61,9 @@ public class NoteService : INoteService
 
     public async Task<bool> DeleteNoteAsync(string userId, Guid noteId)
     {
-        var note = await _context.Notes
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        var note = await context.Notes
             .FirstOrDefaultAsync(n => n.Id == noteId);
 
         if (note == null)
@@ -75,15 +80,17 @@ public class NoteService : INoteService
             throw new NoteAccessDeniedException(noteId, userId);
         }
 
-        _context.Notes.Remove(note);
-        var result = await _context.SaveChangesAsync();
+        context.Notes.Remove(note);
+        var result = await context.SaveChangesAsync();
 
         return result > 0; // Return true if deletion was successful
     }
 
     public async Task<NoteDto?> GetNoteByIdAsync(string userId, Guid noteId)
     {
-        var note = await _context.Notes
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        var note = await context.Notes
             .AsNoTracking() // Read-only operation
             .FirstOrDefaultAsync(n => n.Id == noteId);
 
@@ -109,49 +116,52 @@ public class NoteService : INoteService
         );
     }
 
-    public async Task<PaginatedListDto<NoteListItemDto>> GetNotesAsync(string userId, GetNotesListQuery query)
+    public async Task<PaginatedListDto<NoteListItemDto>> GetNotesAsync(string userId, GetNotesListQuery queryParams)
     {
-        // Start with base query filtered by user
-        var queryable = _context.Notes
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        var queryable = context.Notes
             .AsNoTracking()
             .Where(n => n.UserId == userId);
 
-        // Apply sorting
-        bool descending = query.SortDirection?.ToLowerInvariant() == "desc";
-        queryable = query.SortBy?.ToLowerInvariant() switch
+        bool descending = queryParams.SortDirection?.ToLowerInvariant() == "desc";
+        Expression<Func<Note, object>> keySelector = queryParams.SortBy?.ToLowerInvariant() switch
         {
-            "createdat" => descending 
-                ? queryable.OrderByDescending(n => n.CreatedAt) 
-                : queryable.OrderBy(n => n.CreatedAt),
-            _ => descending // Default to ModifiedAt descending
-                ? queryable.OrderByDescending(n => n.ModifiedAt) 
-                : queryable.OrderBy(n => n.ModifiedAt),
+            "title" => note => note.Title,
+            "createdat" => note => note.CreatedAt,
+            _ => note => note.ModifiedAt
         };
 
-        // Calculate total items before pagination
+        if (descending)
+        {
+            queryable = queryable.OrderByDescending(keySelector);
+        }
+        else
+        {
+            queryable = queryable.OrderBy(keySelector);
+        }
+
         var totalItems = await queryable.CountAsync();
 
-        // Apply pagination
         var notes = await queryable
-            .Skip((query.Page - 1) * query.PageSize)
-            .Take(query.PageSize)
-            .ToListAsync(); // Execute query to get the page items
+            .Skip((queryParams.Page - 1) * queryParams.PageSize)
+            .Take(queryParams.PageSize)
+            .ToListAsync();
 
-        // Map to DTO, creating ContentPreview
         var items = notes.Select(n => new NoteListItemDto(
             n.Id,
             n.Title,
-            n.Content.Length > 150 ? n.Content.Substring(0, 150) + "..." : n.Content, // Generate preview
+            n.Content.Length > 150 ? n.Content.Substring(0, 150) + "..." : n.Content,
             n.CreatedAt,
             n.ModifiedAt
-        )).ToList(); // Use ToList() here for IReadOnlyCollection compatibility
+        )).ToList();
 
-        var totalPages = (int)Math.Ceiling((double)totalItems / query.PageSize);
+        var totalPages = (int)Math.Ceiling((double)totalItems / queryParams.PageSize);
 
         return new PaginatedListDto<NoteListItemDto>(
             items,
-            query.Page,
-            query.PageSize,
+            queryParams.Page,
+            queryParams.PageSize,
             totalItems,
             totalPages
         );
@@ -159,7 +169,9 @@ public class NoteService : INoteService
 
     public async Task<NoteDto?> UpdateNoteAsync(string userId, Guid noteId, UpdateNoteRequest request)
     {
-        var note = await _context.Notes
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        var note = await context.Notes
             .FirstOrDefaultAsync(n => n.Id == noteId);
 
         if (note == null)
@@ -177,7 +189,7 @@ public class NoteService : INoteService
         note.Content = request.Content;
         note.ModifiedAt = DateTime.UtcNow; // Update modification timestamp
 
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         // Map updated entity to DTO
         return new NoteDto(

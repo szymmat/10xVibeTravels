@@ -1,0 +1,19 @@
+@* Komponent wyświetlający link do oczekujących propozycji lub informację o ich braku *@
+
+@if (Count > 0)
+{
+    <NavLink href="/plan-proposals">
+        @Count @(Count == 1 ? "oczekująca propozycja" : "oczekujących propozycji")
+    </NavLink>
+}
+else
+{
+    <p class="mb-0">Brak oczekujących propozycji.</p>
+}
+
+@code {
+    /// <summary>
+    /// Liczba oczekujących propozycji.
+    /// </summary>
+    [Parameter] public int Count { get; set; }
+} 

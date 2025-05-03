@@ -1,7 +1,172 @@
 ﻿@page "/"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject _10xVibeTravels.Interfaces.INoteService NoteService
+@inject _10xVibeTravels.Interfaces.IPlanService PlanService
+@inject Microsoft.AspNetCore.Components.NavigationManager NavigationManager
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
+@using _10xVibeTravels.Dtos
+@using _10xVibeTravels.Requests
+@using _10xVibeTravels.Data
+@using System.Security.Claims
+@using _10xVibeTravels.Responses
+@* @using _10xVibeTravels.Components.Shared // Nie jest już potrzebny dzięki _Imports.razor *@
 
 <PageTitle>Home</PageTitle>
 
-<h1>Hello, world!</h1>
+@if (IsLoading)
+{
+    <LoadingSpinner />
+}
+else if (!string.IsNullOrEmpty(ErrorMessage))
+{
+    <div class="alert alert-danger">@ErrorMessage</div>
+}
+else
+{
+    <div class="row">
+        
+        <div class="col-lg-4 mb-3">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Ostatnie Notatki</h5>
+                    <button class="btn btn-sm btn-primary" @onclick="() => ShowQuickNoteModal = true">+ Nowa</button>
+                </div>
+                <div class="card-body">
+                    <RecentNotesSection Notes="RecentNotes" />
+                </div>
+            </div>
+        </div>
 
-Welcome to your new app.
+        <div class="col-lg-4 mb-3">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Ostatnie Plany</h5>
+                </div>
+                <div class="card-body">
+                    <RecentPlansSection Plans="RecentAcceptedPlans" />
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4 mb-3">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Oczekujące Propozycje</h5>
+                </div>
+                <div class="card-body">
+                     <PendingProposalsSection Count="PendingProposalCount" />
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    @* Krok 7: Integracja QuickNoteModal *@
+    <QuickNoteModal @bind-Visible="ShowQuickNoteModal" @bind-Visible:event="VisibleChanged" OnNoteSaved="RefreshRecentNotesAsync"/>
+}
+
+@code {
+    private bool IsLoading = true;
+    private List<NoteListItemDto>? RecentNotes;
+    private List<PlanListItemDto>? RecentAcceptedPlans;
+    private int PendingProposalCount = 0;
+    private string? ErrorMessage;
+    private bool ShowQuickNoteModal = false;
+    private string? currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+        currentUserId = await GetUserIdAsync();
+
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            ErrorMessage = "Nie można zidentyfikować użytkownika.";
+            IsLoading = false;
+            return;
+        }
+
+        try
+        {
+            var notesTask = LoadRecentNotesAsync(currentUserId);
+            var acceptedPlansTask = LoadRecentAcceptedPlansAsync(currentUserId);
+            var generatedPlansTask = LoadPendingProposalCountAsync(currentUserId);
+
+            await Task.WhenAll(notesTask, acceptedPlansTask, generatedPlansTask);
+        }
+        catch (Exception ex)
+        {   
+            Console.WriteLine($"Error loading dashboard data: {ex.Message}");
+            ErrorMessage = "Nie udało się załadować danych panelu. Spróbuj ponownie później.";
+        }
+        finally
+        {   
+            IsLoading = false;
+        }
+    }
+
+    private async Task<string?> GetUserIdAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        return authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    }
+    
+    private async Task LoadRecentNotesAsync(string userId)
+    {
+        try
+        {
+            var notesQuery = new GetNotesListQuery { Page = 1, PageSize = 3, SortBy = "modifiedAt", SortDirection = "desc" };
+            var notesResult = await NoteService.GetNotesAsync(userId, notesQuery);
+            RecentNotes = notesResult?.Items?.ToList() ?? new List<NoteListItemDto>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading recent notes: {ex.Message}");
+            ErrorMessage = ErrorMessage ?? "Nie udało się załadować ostatnich notatek."; 
+        }
+    }
+
+    private async Task LoadRecentAcceptedPlansAsync(string userId)
+    {
+        try
+        {
+            var acceptedPlansQuery = new PlanListQueryParameters { Status = PlanStatus.Accepted.ToString(), Page = 1, PageSize = 3, SortBy = "modifiedAt", SortDirection = "desc" };
+            var acceptedPlansResult = await PlanService.GetPlansAsync(userId, acceptedPlansQuery);
+            RecentAcceptedPlans = acceptedPlansResult?.Items?.ToList() ?? new List<PlanListItemDto>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading recent plans: {ex.Message}");
+            ErrorMessage = ErrorMessage ?? "Nie udało się załadować ostatnich planów."; 
+        }
+    }
+
+    private async Task LoadPendingProposalCountAsync(string userId)
+    {
+        try
+        {
+            var generatedPlansQuery = new PlanListQueryParameters { Status = PlanStatus.Generated.ToString(), Page = 1, PageSize = 1 };
+            var generatedPlansResult = await PlanService.GetPlansAsync(userId, generatedPlansQuery);
+            PendingProposalCount = generatedPlansResult?.TotalItems ?? 0;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading pending proposals count: {ex.Message}");
+            ErrorMessage = ErrorMessage ?? "Nie udało się załadować liczby propozycji."; 
+        }
+    }
+
+    private async Task RefreshRecentNotesAsync()
+    {
+        if (string.IsNullOrEmpty(currentUserId)) 
+        {
+            Console.WriteLine("Cannot refresh notes, user ID not available.");
+            return;
+        }
+
+        Console.WriteLine("Refreshing recent notes after save...");
+        await LoadRecentNotesAsync(currentUserId);
+        StateHasChanged();
+    }
+}

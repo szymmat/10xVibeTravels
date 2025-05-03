@@ -10,40 +10,46 @@ namespace _10xVibeTravels.Services;
 
 public class PlanService : IPlanService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
     // private readonly IMapper _mapper; // TODO: Add AutoMapper later if needed
 
-    public PlanService(ApplicationDbContext context/*, IMapper mapper*/)
+    public PlanService(IDbContextFactory<ApplicationDbContext> contextFactory/*, IMapper mapper*/)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         // _mapper = mapper; 
     }
 
     public async Task<PaginatedResult<PlanListItemDto>> GetPlansAsync(string userId, PlanListQueryParameters queryParams)
     {
-        var query = _context.Plans
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        var queryable = context.Plans
             .AsNoTracking()
-            .Where(p => p.UserId == userId && p.Status == queryParams.Status); // Base filter
+            .Where(p => p.UserId == userId); 
 
-        // Sorting
-        var sortColumn = GetSortProperty(queryParams.SortBy);
-        query = queryParams.SortDirection.Equals("asc", StringComparison.OrdinalIgnoreCase)
-            ? query.OrderBy(sortColumn)
-            : query.OrderByDescending(sortColumn);
+        if (!string.IsNullOrEmpty(queryParams.Status) && Enum.TryParse<PlanStatus>(queryParams.Status, true, out var statusEnum))
+        {
+            string statusString = statusEnum.ToString(); 
+            queryable = queryable.Where(p => p.Status == statusString);
+        }
 
-        // Pagination
-        var totalItems = await query.CountAsync();
-        var items = await query
+        Expression<Func<Plan, object>> keySelector = GetSortPropertyExpression(queryParams.SortBy);
+        queryable = queryParams.SortDirection.Equals("asc", StringComparison.OrdinalIgnoreCase)
+            ? queryable.OrderBy(keySelector)
+            : queryable.OrderByDescending(keySelector);
+
+        var totalItems = await queryable.CountAsync();
+        var items = await queryable
             .Skip((queryParams.Page - 1) * queryParams.PageSize)
             .Take(queryParams.PageSize)
-            .Select(p => new PlanListItemDto // Use non-qualified DTO name
+            .Select(p => new PlanListItemDto 
             {
                 Id = p.Id,
-                Status = Enum.Parse<PlanStatus>(p.Status, true), // Map string to enum
+                Status = Enum.Parse<PlanStatus>(p.Status, true),
                 Title = p.Title,
-                ContentPreview = p.Content != null && p.Content.Length > 150 ? p.Content.Substring(0, 150) + "..." : p.Content ?? string.Empty, // Handle null content
-                StartDate = DateOnly.FromDateTime(p.StartDate), // Convert DateTime to DateOnly
-                EndDate = DateOnly.FromDateTime(p.EndDate),     // Convert DateTime to DateOnly
+                ContentPreview = p.Content != null && p.Content.Length > 150 ? p.Content.Substring(0, 150) + "..." : p.Content ?? string.Empty,
+                StartDate = DateOnly.FromDateTime(p.StartDate),
+                EndDate = DateOnly.FromDateTime(p.EndDate),
                 Budget = p.Budget,
                 CreatedAt = p.CreatedAt,
                 ModifiedAt = p.ModifiedAt
@@ -55,7 +61,9 @@ public class PlanService : IPlanService
 
     public async Task<PlanDetailDto?> GetPlanByIdAsync(string userId, Guid planId)
     {
-        var plan = await _context.Plans
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        var plan = await context.Plans
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == planId && p.UserId == userId);
 
@@ -64,15 +72,14 @@ public class PlanService : IPlanService
             return null;
         }
 
-        // Manual Projection
-        return new PlanDetailDto // Use non-qualified DTO name
+        return new PlanDetailDto 
         {
             Id = plan.Id,
             Status = Enum.Parse<PlanStatus>(plan.Status, true),
             Title = plan.Title,
-            Content = plan.Content ?? string.Empty, // Handle null content
-            StartDate = DateOnly.FromDateTime(plan.StartDate), // Convert DateTime to DateOnly
-            EndDate = DateOnly.FromDateTime(plan.EndDate),     // Convert DateTime to DateOnly
+            Content = plan.Content ?? string.Empty,
+            StartDate = DateOnly.FromDateTime(plan.StartDate),
+            EndDate = DateOnly.FromDateTime(plan.EndDate),
             Budget = plan.Budget,
             CreatedAt = plan.CreatedAt,
             ModifiedAt = plan.ModifiedAt
@@ -81,16 +88,20 @@ public class PlanService : IPlanService
 
     public async Task<(PlanDetailDto? UpdatedPlan, string? ErrorMessage)> UpdatePlanAsync(string userId, Guid planId, UpdatePlanDto updateDto)
     {
-        var plan = await _context.Plans.FirstOrDefaultAsync(p => p.Id == planId && p.UserId == userId);
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        
+        var plan = await context.Plans.FirstOrDefaultAsync(p => p.Id == planId && p.UserId == userId);
 
         if (plan == null)
         {
             return (null, "Plan not found or you don't have access.");
         }
 
-        var currentStatus = Enum.Parse<PlanStatus>(plan.Status, true);
+        if (!Enum.TryParse<PlanStatus>(plan.Status, true, out var currentStatus))
+        {
+            return (null, $"Invalid current status '{plan.Status}' found in database.");
+        }
 
-        // Business logic validation
         if (currentStatus == PlanStatus.Generated)
         {
             if (updateDto.Content != null)
@@ -102,7 +113,6 @@ public class PlanService : IPlanService
                 return (null, "Invalid status transition for 'Generated' plan. Only 'Accepted' or 'Rejected' allowed.");
             }
 
-            // Apply allowed changes for Generated status
             if (updateDto.Status.HasValue)
             {
                 plan.Status = updateDto.Status.Value.ToString();
@@ -118,38 +128,32 @@ public class PlanService : IPlanService
             {
                 return (null, "Cannot update status or title for an 'Accepted' plan.");
             }
-            // Apply allowed changes for Accepted status
             if (updateDto.Content != null)
             {
                 plan.Content = updateDto.Content;
             }
         }
-        else // Rejected or other potential future statuses
+        else 
         {
-            return (null, $"Cannot update a plan with status '{plan.Status}'.");
+            return (null, $"Cannot update a plan with status '{currentStatus}'.");
         }
         
-        // If any change was made, update ModifiedAt
-        if (_context.Entry(plan).State == EntityState.Modified)
+        bool hasChanges = context.Entry(plan).State == EntityState.Modified;
+        if (hasChanges)
         {
              plan.ModifiedAt = DateTime.UtcNow;
         }
-        else 
-        {
-             // No changes detected, return the current state as DTO 
-        }
 
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
-        // Project updated entity to DTO
-        var updatedDto = new PlanDetailDto // Use non-qualified DTO name
+        var updatedDto = new PlanDetailDto 
         {
            Id = plan.Id,
             Status = Enum.Parse<PlanStatus>(plan.Status, true),
             Title = plan.Title,
-            Content = plan.Content ?? string.Empty, // Handle null content
-            StartDate = DateOnly.FromDateTime(plan.StartDate), // Convert DateTime to DateOnly
-            EndDate = DateOnly.FromDateTime(plan.EndDate),     // Convert DateTime to DateOnly
+            Content = plan.Content ?? string.Empty,
+            StartDate = DateOnly.FromDateTime(plan.StartDate),
+            EndDate = DateOnly.FromDateTime(plan.EndDate),
             Budget = plan.Budget,
             CreatedAt = plan.CreatedAt,
             ModifiedAt = plan.ModifiedAt
@@ -160,28 +164,29 @@ public class PlanService : IPlanService
 
     public async Task<(bool Success, string? ErrorMessage)> DeletePlanAsync(string userId, Guid planId)
     {
-        var plan = await _context.Plans.FirstOrDefaultAsync(p => p.Id == planId && p.UserId == userId);
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        var plan = await context.Plans.FirstOrDefaultAsync(p => p.Id == planId && p.UserId == userId);
 
         if (plan == null)
         {
-            // Return true for idempotency (resource is already gone)
             return (true, null); 
         }
 
-        _context.Plans.Remove(plan);
-        await _context.SaveChangesAsync();
+        context.Plans.Remove(plan);
+        await context.SaveChangesAsync();
 
         return (true, null);
     }
 
-    // Helper to get Expression for sorting (avoids magic strings directly in OrderBy)
-    private static Expression<Func<Plan, object>> GetSortProperty(string? sortBy)
+    private static Expression<Func<Plan, object>> GetSortPropertyExpression(string? sortBy)
     {
         return sortBy?.ToLowerInvariant() switch
         {
+            "title" => plan => plan.Title,
+            "startdate" => plan => plan.StartDate,
             "createdat" => plan => plan.CreatedAt,
-            "modifiedat" => plan => plan.ModifiedAt, // Default
-            _ => plan => plan.ModifiedAt // Default if null or invalid
+            _ => plan => plan.ModifiedAt
         };
     }
 } 

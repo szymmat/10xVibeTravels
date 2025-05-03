@@ -10,17 +10,16 @@ namespace _10xVibeTravels.Services;
 
 public class PlanGenerationService : IPlanGenerationService
 {
-    private readonly ApplicationDbContext _context;
-    // UserManager removed as UserProfile is fetched via context and userId
+    private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
     private readonly ILogger<PlanGenerationService> _logger;
     private readonly IOpenRouterService _openRouterService;
 
     public PlanGenerationService(
-        ApplicationDbContext context,
+        IDbContextFactory<ApplicationDbContext> contextFactory,
         ILogger<PlanGenerationService> logger,
         IOpenRouterService openRouterService)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _logger = logger;
         _openRouterService = openRouterService;
     }
@@ -30,11 +29,12 @@ public class PlanGenerationService : IPlanGenerationService
         _logger.LogInformation("Starting plan proposal generation for user {UserId} and note {NoteId}", userId, request.NoteId);
 
         // --- Step 5a: Fetch Note and UserProfile (including related data) ---
-        var note = await _context.Notes
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        var note = await context.Notes
             .AsNoTracking() // Read-only for validation
             .FirstOrDefaultAsync(n => n.Id == request.NoteId);
 
-        var userProfile = await _context.UserProfiles
+        var userProfile = await context.UserProfiles
             .Include(up => up.TravelStyle)
             .Include(up => up.Intensity)
             .Include(up => up.User)
@@ -51,7 +51,7 @@ public class PlanGenerationService : IPlanGenerationService
         }
 
         // Fetch UserInterests separately
-        var userInterests = await _context.UserInterests
+        var userInterests = await context.UserInterests
             .Include(ui => ui.Interest)
             .Where(ui => ui.UserId == userProfile.UserId) 
             .AsNoTracking()
@@ -157,8 +157,8 @@ public class PlanGenerationService : IPlanGenerationService
         // --- Step 5h: Save Plan entities --- 
         try
         {
-            _context.Plans.AddRange(newPlans);
-            await _context.SaveChangesAsync();
+            await context.Plans.AddRangeAsync(newPlans);
+            await context.SaveChangesAsync();
             _logger.LogInformation("Successfully saved {Count} new plan proposals for user {UserId}", newPlans.Count, userId);
         }
         catch (DbUpdateException ex)
@@ -184,5 +184,39 @@ public class PlanGenerationService : IPlanGenerationService
 
         _logger.LogInformation("Successfully generated and mapped {Count} plan proposals for user {UserId}", responseProposals.Count, userId);
         return responseProposals;
+    }
+
+    public async Task AcceptPlanProposalAsync(string userId, Guid planId)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        var plan = await context.Plans.FirstOrDefaultAsync(p => p.Id == planId && p.UserId == userId);
+
+        if (plan == null)
+            throw new KeyNotFoundException($"Plan with ID {planId} not found for user {userId}.");
+        
+        if (plan.Status != PlanStatus.Generated.ToString())
+             throw new InvalidOperationException("Only plans with status 'Generated' can be accepted.");
+        
+        plan.Status = PlanStatus.Accepted.ToString();
+        plan.ModifiedAt = DateTime.UtcNow;
+        await context.SaveChangesAsync();
+        _logger.LogInformation("Plan proposal {PlanId} accepted by user {UserId}.", planId, userId);
+    }
+
+    public async Task RejectPlanProposalAsync(string userId, Guid planId)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        var plan = await context.Plans.FirstOrDefaultAsync(p => p.Id == planId && p.UserId == userId);
+
+        if (plan == null)
+            throw new KeyNotFoundException($"Plan with ID {planId} not found for user {userId}.");
+        
+        if (plan.Status != PlanStatus.Generated.ToString())
+            throw new InvalidOperationException("Only plans with status 'Generated' can be rejected.");
+            
+        plan.Status = PlanStatus.Rejected.ToString();
+        plan.ModifiedAt = DateTime.UtcNow;
+        await context.SaveChangesAsync();
+        _logger.LogInformation("Plan proposal {PlanId} rejected by user {UserId}.", planId, userId);
     }
 } 

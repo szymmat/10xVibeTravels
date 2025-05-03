@@ -1,0 +1,27 @@
+@using _10xVibeTravels.Dtos
+@using _10xVibeTravels.Components.Shared
+@using _10xVibeTravels.Responses
+
+@if (Plans == null || !Plans.Any())
+{
+    <EmptyState Message="Brak zaakceptowanych planów do wyświetlenia." />
+}
+else
+{
+    <ul class="list-group list-group-flush">
+        @foreach (var plan in Plans)
+        {
+            <li class="list-group-item">
+                <NavLink href=@($"/plans/@{plan.Id}")>@plan.Title</NavLink>
+                 @* Można dodać np. datę modyfikacji, jeśli potrzeba: <small class="text-muted float-end">@plan.ModifiedAt.ToShortDateString()</small> *@
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    /// <summary>
+    /// Lista ostatnich zaakceptowanych planów do wyświetlenia.
+    /// </summary>
+    [Parameter] public List<PlanListItemDto>? Plans { get; set; }
+} 

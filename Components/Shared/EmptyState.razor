@@ -1,0 +1,26 @@
+@* Komponent do wyświetlania komunikatu o braku danych *@
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="text-center text-muted mt-3 mb-3">
+        <p>@Message</p>
+        @if (ChildContent != null)
+        {
+            <div>
+                @ChildContent
+            </div>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// Komunikat do wyświetlenia.
+    /// </summary>
+    [Parameter] public string Message { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Opcjonalna zawartość do wyświetlenia pod komunikatem (np. przyciski akcji).
+    /// </summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+} 
