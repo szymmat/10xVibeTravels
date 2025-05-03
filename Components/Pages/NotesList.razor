@@ -1,0 +1,285 @@
+@page "/notes"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using _10xVibeTravels.Interfaces
+@using _10xVibeTravels.Data
+@using _10xVibeTravels.Dtos
+@using _10xVibeTravels.Requests
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Authorization
+@using _10xVibeTravels.Components.Shared
+@inject INoteService NoteService
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<h3>Notes List</h3>
+
+@if (_state.IsLoading)
+{
+    <LoadingSpinner />
+}
+else if (!string.IsNullOrEmpty(_state.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        @_state.ErrorMessage
+        <button class="btn btn-sm btn-primary ms-2" @onclick="LoadNotesAsync">Try Again</button>
+    </div>
+}
+else if (_state.NotesData is null || _state.NotesData!.TotalItems == 0)
+{
+    <EmptyState Message="No notes found.">
+        <ChildContent>
+             <button class="btn btn-primary" @onclick="NavigateToCreate">Create First Note</button>
+        </ChildContent>
+    </EmptyState>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <SortableTableHeader ColumnTitle="Title"
+                                     SortIdentifier="title" 
+                                     CurrentSortBy="@_state.SortBy"
+                                     CurrentSortDirection="@_state.SortDirection"
+                                     OnSortChanged="HandleSortChanged" />
+                <SortableTableHeader ColumnTitle="Created At"
+                                     SortIdentifier="createdAt"
+                                     CurrentSortBy="@_state.SortBy"
+                                     CurrentSortDirection="@_state.SortDirection"
+                                     OnSortChanged="HandleSortChanged" />
+                <SortableTableHeader ColumnTitle="Modified At"
+                                     SortIdentifier="modifiedAt"
+                                     CurrentSortBy="@_state.SortBy"
+                                     CurrentSortDirection="@_state.SortDirection"
+                                     OnSortChanged="HandleSortChanged" />
+                <th>Actions</th> @* Actions column is not sortable *@
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var note in _state.NotesData!.Items)
+            {
+                <tr>
+                    <td>@note.Title</td>
+                    <td>@note.CreatedAt.ToString()</td> @* Consider formatting *@
+                    <td>@note.ModifiedAt.ToString()</td> @* Consider formatting *@
+                    <td>
+                        <button class="btn btn-sm btn-danger" @onclick="() => ShowDeleteModal(note.Id)">Delete</button> @* Updated onclick *@
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    
+    @* Render pagination only if there are multiple pages *@
+    @if (_state.NotesData!.TotalPages > 1)
+    {
+        <PaginationControls CurrentPage="@_state.CurrentPage"
+                            TotalPages="@_state.NotesData!.TotalPages"
+                            OnPageChanged="HandlePageChanged" />
+    }
+}
+
+@* --- Delete Confirmation Modal --- *@
+<DeleteConfirmationModal IsVisible="@_state.IsDeleteModalVisible"
+                         OnConfirm="ConfirmDeleteAsync" 
+                         OnCancel="CancelDelete" />
+
+@code {
+    // Removed local GetNotesListQuery class definition
+
+    private class NotesListViewState
+    {
+        public bool IsLoading { get; set; } = true;
+        public string? ErrorMessage { get; set; }
+        public PaginatedListDto<NoteListItemDto>? NotesData { get; set; }
+        public int CurrentPage { get; set; } = 1;
+        public int PageSize { get; set; } = 10;
+        public string SortBy { get; set; } = "modifiedAt";
+        public string SortDirection { get; set; } = "desc";
+        public Guid? NoteToDeleteId { get; set; }
+        public bool IsDeleteModalVisible { get; set; } = false;
+    }
+
+    private NotesListViewState _state = new NotesListViewState();
+    private System.Security.Claims.ClaimsPrincipal? _user;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _user = authState.User;
+        await LoadNotesAsync();
+    }
+
+    private async Task LoadNotesAsync()
+    {
+        if (_user?.Identity?.IsAuthenticated != true)
+        {
+            _state.ErrorMessage = "User is not authenticated.";
+            _state.IsLoading = false;
+            return;
+        }
+
+        var userId = _user.FindFirst(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId)) {
+             _state.ErrorMessage = "Could not retrieve user ID.";
+             _state.IsLoading = false;
+             return;
+        }
+
+        _state.IsLoading = true;
+        _state.ErrorMessage = null;
+        StateHasChanged(); // Force update to show loading spinner immediately
+
+        try
+        {
+            // Use the correct query type from _10xVibeTravels.Requests
+            var query = new GetNotesListQuery
+            {
+                Page = _state.CurrentPage,
+                PageSize = _state.PageSize,
+                SortBy = _state.SortBy,
+                SortDirection = _state.SortDirection
+            };
+
+            _state.NotesData = await NoteService.GetNotesAsync(userId, query);
+
+            // Use 'is not null' and null-forgiving operator (!)
+            if (_state.NotesData is not null) 
+            {
+                 _state.CurrentPage = _state.NotesData!.Page;
+                 _state.PageSize = _state.NotesData!.PageSize;
+            }
+            else
+            {
+                _state.ErrorMessage = "Failed to retrieve note data structure.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _state.ErrorMessage = $"An error occurred while loading notes: {ex.Message}";
+            // Log exception
+        }
+        finally
+        {
+            _state.IsLoading = false;
+            StateHasChanged(); // Ensure UI updates after loading finishes
+        }
+    }
+
+    private async Task HandleSortChanged((string SortBy, string SortDirection) sortInfo)
+    {
+        if (_state.SortBy != sortInfo.SortBy || _state.SortDirection != sortInfo.SortDirection)
+        {
+            _state.SortBy = sortInfo.SortBy;
+            _state.SortDirection = sortInfo.SortDirection;
+            _state.CurrentPage = 1;
+            // StateHasChanged(); // No need here, LoadNotesAsync will call it
+            await LoadNotesAsync();
+        }
+    }
+
+    private async Task HandlePageChanged(int newPage)
+    {
+        if (_state.CurrentPage != newPage)
+        {
+            _state.CurrentPage = newPage;
+            // StateHasChanged(); // No need here, LoadNotesAsync will call it
+            await LoadNotesAsync();
+        }
+    }
+
+    private void ShowDeleteModal(Guid noteId)
+    {
+        Console.WriteLine("ShowDeleteModal called with noteId: " + noteId);
+        _state.NoteToDeleteId = noteId;
+        _state.IsDeleteModalVisible = true;
+        StateHasChanged(); // Explicitly tell Blazor state has changed
+    }
+
+    private void CancelDelete()
+    {
+        _state.NoteToDeleteId = null;
+        _state.IsDeleteModalVisible = false;
+        StateHasChanged(); // Explicitly tell Blazor state has changed
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_state.NoteToDeleteId is null)
+        {
+            // Should not happen if modal is shown correctly, but good practice to check
+            _state.ErrorMessage = "Error: Note ID for deletion is missing.";
+            CancelDelete(); // Hide modal and clear state
+            return;
+        }
+
+        // Ensure user ID is still available (it should be from OnInitializedAsync)
+        var userId = _user?.FindFirst(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _state.ErrorMessage = "Error: User session lost. Please reload.";
+            CancelDelete();
+            return;
+        }
+
+        Guid noteIdToDelete = _state.NoteToDeleteId.Value;
+        bool success = false;
+
+        try
+        {
+            // Assuming NoteService.DeleteNoteAsync returns bool or throws exception on failure
+            success = await NoteService.DeleteNoteAsync(userId, noteIdToDelete);
+
+            if (success)
+            {
+                // Optional: Show a temporary success message via a separate state variable or toast notification system
+                Console.WriteLine($"Note {noteIdToDelete} deleted successfully."); // Log success
+            }
+            else
+            {
+                // Handle cases where the service returns false without an exception
+                 _state.ErrorMessage = $"Failed to delete note {noteIdToDelete}. The note might have already been deleted.";
+                 // Consider refreshing the list even on failure=false if it might mean 'not found'
+                 await LoadNotesAsync();
+            }
+        }
+        catch (HttpRequestException httpEx) when (httpEx.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // Specific handling for 404 Not Found
+            _state.ErrorMessage = $"Note {noteIdToDelete} was not found. It might have already been deleted.";
+             // Refresh list to remove the non-existent item from view
+             await LoadNotesAsync();
+             success = true; // Treat 404 as 'success' in terms of outcome (item is gone)
+        }
+        catch (Exception ex)
+        {
+            // Handle other potential errors (network, server, authorization etc.)
+            _state.ErrorMessage = $"An error occurred while deleting note {noteIdToDelete}: {ex.Message}";
+            // Log the full exception ex
+            Console.WriteLine($"Error deleting note {noteIdToDelete}: {ex}");
+            success = false;
+        }
+        finally
+        {
+            // Always hide the modal and clear the ID after attempting delete
+            CancelDelete(); // This already calls StateHasChanged
+            // Refresh the list if the deletion was successful (or treated as such, like 404)
+            if (success) // assuming 'success' bool is declared in try block
+            {
+                await LoadNotesAsync(); // This calls StateHasChanged in finally
+            }
+            else
+            {
+                 // If deletion failed but we didn't reload, ensure error message is shown
+                 StateHasChanged(); 
+            }
+           // Removed redundant StateHasChanged() here as LoadNotesAsync or CancelDelete handles it
+        }
+    }
+
+    private void NavigateToCreate()
+    {
+        NavigationManager.NavigateTo("/notes/create");
+    }
+} 

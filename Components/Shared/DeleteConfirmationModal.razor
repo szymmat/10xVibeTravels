@@ -1,0 +1,56 @@
+@using Microsoft.AspNetCore.Components
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+
+@if (IsVisible)
+{
+    <div class="modal fade show" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="false" style="display: block; background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteModalLabel">Confirm Deletion</h5>
+                    <button type="button" class="btn-close" @onclick="HandleCancel" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Are you sure you want to delete this item?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="HandleCancel">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="HandleConfirm">Confirm Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    // Optional: Use JS interop to handle backdrop clicks or escape key if needed,
+    // but the basic functionality works with the @onclick handlers.
+
+    private async Task HandleConfirm()
+    {
+        await OnConfirm.InvokeAsync();
+    }
+
+    private async Task HandleCancel()
+    {
+        await OnCancel.InvokeAsync();
+    }
+
+    // If using JS interop for more robust modal closing:
+    // protected override async Task OnParametersSetAsync()
+    // {
+    //     if (IsVisible)
+    //     {
+    //         await JSRuntime.InvokeVoidAsync("showModal", "#deleteConfirmModal");
+    //     }
+    //     else
+    //     {
+    //         await JSRuntime.InvokeVoidAsync("hideModal", "#deleteConfirmModal");
+    //     }
+    // }
+} 

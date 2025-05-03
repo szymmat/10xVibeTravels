@@ -1,0 +1,40 @@
+@using Microsoft.AspNetCore.Components
+
+<th @onclick="HandleClick" style="cursor: pointer;">
+    @ColumnTitle
+    @if (IsCurrentSortColumn)
+    {
+        <span>@SortIcon</span>
+    }
+</th>
+
+@code {
+    [Parameter] public string ColumnTitle { get; set; } = string.Empty;
+    [Parameter] public string SortIdentifier { get; set; } = string.Empty;
+    [Parameter] public string CurrentSortBy { get; set; } = string.Empty;
+    [Parameter] public string CurrentSortDirection { get; set; } = string.Empty;
+    [Parameter] public EventCallback<(string SortBy, string SortDirection)> OnSortChanged { get; set; }
+
+    private bool IsCurrentSortColumn => CurrentSortBy == SortIdentifier;
+
+    // Simple icons for now, could be replaced with actual icons (e.g., FontAwesome, Bootstrap Icons)
+    private string SortIcon => CurrentSortDirection == "asc" ? "🔼" : "🔽";
+
+    private async Task HandleClick()
+    {
+        Console.WriteLine("HandleClick called with SortIdentifier: " + SortIdentifier);
+        string newSortDirection;
+        if (IsCurrentSortColumn)
+        {
+            // Cycle direction: desc -> asc -> default (desc again, assuming API handles empty/null as default)
+            newSortDirection = CurrentSortDirection == "desc" ? "asc" : "desc";
+        }
+        else
+        {
+            // Default to descending when selecting a new column
+            newSortDirection = "desc";
+        }
+
+        await OnSortChanged.InvokeAsync((SortIdentifier, newSortDirection));
+    }
+} 
