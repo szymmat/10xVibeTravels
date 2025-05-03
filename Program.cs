@@ -3,6 +3,8 @@ using _10xVibeTravels.Components.Account;
 using _10xVibeTravels.Data;
 using _10xVibeTravels.Interfaces;
 using _10xVibeTravels.Services;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -54,8 +56,18 @@ namespace _10xVibeTravels
             builder.Services.AddScoped<IInterestService, InterestService>();
             builder.Services.AddScoped<ITravelStyleService, TravelStyleService>();
 
+            // Register Note specific services
+            builder.Services.AddScoped<INoteService, NoteService>();
+
+            // Needed for accessing HttpContext outside of controllers (e.g., in services)
+            builder.Services.AddHttpContextAccessor();
+
             // Add API Controllers support (needed for Swagger endpoint discovery)
             builder.Services.AddControllers();
+
+            // Configure FluentValidation
+            builder.Services.AddFluentValidationAutoValidation();
+            builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
             // Add Swagger services
             builder.Services.AddEndpointsApiExplorer();

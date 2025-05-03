@@ -10,10 +10,6 @@ public abstract class PlanProposalException : Exception
 }
 
 // 404 Not Found
-public class NoteNotFoundException : PlanProposalException
-{
-    public NoteNotFoundException(Guid noteId) : base($"Note with ID '{noteId}' not found.") { }
-}
 
 // 403 Forbidden
 public class NoteForbiddenException : PlanProposalException
