@@ -11,7 +11,7 @@ else
         @foreach (var note in Notes)
         {
             <li class="list-group-item">
-                <NavLink href=@($"/notes/@{note.Id}")>@note.Title</NavLink>
+                <NavLink href=@($"/notes/{note.Id}")>@note.Title</NavLink>
                 @* Można dodać np. datę modyfikacji, jeśli potrzeba: <small class="text-muted float-end">@note.ModifiedAt.ToShortDateString()</small> *@
             </li>
         }

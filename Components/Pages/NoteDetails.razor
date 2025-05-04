@@ -1,0 +1,318 @@
+@page "/notes/{id:guid}"
+@rendermode InteractiveServer
+@using _10xVibeTravels.Dtos
+@using System.Security.Claims
+@using _10xVibeTravels.Components.Shared
+@using _10xVibeTravels.Requests
+@using _10xVibeTravels.Components.Shared.Modals
+@using static _10xVibeTravels.Components.Shared.Modals.EditNoteModal
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject _10xVibeTravels.Interfaces.INoteService NoteSvc
+@inject _10xVibeTravels.Interfaces.IPlanGenerationService PlanGenerationSvc
+@inject Microsoft.AspNetCore.Components.NavigationManager Navigation
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
+
+<h3>Szczegóły notatki</h3>
+
+@if (isLoading)
+{
+    <LoadingSpinner />
+}
+else if (errorMessage != null)
+{
+    <div class="alert alert-danger" role="alert">
+        @errorMessage
+    </div>
+}
+else if (currentNote != null)
+{
+    <div>
+        <h4>@currentNote.Title</h4>
+        <pre>@currentNote.Content</pre>
+        <hr />
+        <small>Utworzona: @currentNote.CreatedAt.ToString("g")</small><br/>
+        <small>Zmodyfikowana: @currentNote.ModifiedAt.ToString("g")</small>
+    </div>
+    <hr />
+    <div>
+        <!-- Action buttons will go here -->
+        <button class="btn btn-primary me-2" @onclick="OpenEditModal">Edytuj Notatkę</button>
+        <button class="btn btn-danger me-2" @onclick="OpenDeleteModal">Usuń Notatkę</button>
+        <button class="btn btn-success" @onclick="OpenGenerateModal">Generuj Plan</button>
+    </div>
+}
+else
+{
+     <div class="alert alert-warning" role="alert">
+        Notatka nieznaleziona lub nie masz dostępu.
+    </div>
+}
+
+<!-- Modals -->
+<DeleteConfirmationModal IsVisible="isDeleteModalOpen"
+                         OnConfirm="HandleDeleteConfirmedAction"
+                         OnCancel="CloseDeleteModal" />
+
+<EditNoteModal IsVisible="isEditModalOpen"
+               InitialNoteData="currentNote"
+               OnSave="HandleEditSave"
+               OnCancel="CloseEditModal" />
+
+@* TODO: Add GeneratePlanModal here *@
+<GeneratePlanModal IsVisible="isGenerateModalOpen"
+                   OnGenerate="HandleGeneratePlan"
+                   OnCancel="CloseGenerateModal" />
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private NoteDto? currentNote;
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    private bool isEditModalOpen = false;
+    private bool isDeleteModalOpen = false;
+    private bool isGenerateModalOpen = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+        currentNote = null;
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated ?? false)
+        {
+            var userIdString = user.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdString))
+            {
+                errorMessage = "Could not find User ID.";
+                isLoading = false;
+                return;
+            }
+
+            try
+            {
+                // Assuming GetNoteByIdAsync correctly handles authorization internally
+                // and throws exceptions for 403 Forbidden / 404 Not Found.
+                // If it returns null for Not Found/Forbidden, the logic needs adjustment.
+                currentNote = await NoteSvc.GetNoteByIdAsync(userIdString, Id);
+                 if (currentNote == null)
+                 {
+                    // This handles cases where the service might return null instead of throwing specific exceptions.
+                    errorMessage = "Note not found or access denied.";
+                 }
+            }
+            // Assuming INoteService methods might throw specific exceptions (e.g.,ApiException)
+            // or handle errors internally and return null/specific results.
+            // Adjust catch blocks based on actual INoteService implementation details.
+            catch (Exception ex) // Catch a general exception for now
+            {
+                // Log the exception ex
+                Console.WriteLine($"Error fetching note: {ex.Message}"); // Basic logging
+                errorMessage = "An error occurred while loading the note. Please try again later.";
+                // TODO: More specific error handling based on exception type (e.g., check status codes if ApiException is used)
+                // Example: if (ex is ApiException apiEx) { /* check apiEx.StatusCode */ }
+            }
+            finally
+            {
+                isLoading = false;
+            }
+        }
+        else
+        {
+            // This case should technically be handled by [Authorize], but adding a check for robustness.
+             errorMessage = "User is not authenticated.";
+             // Navigation.NavigateTo("authentication/login"); // Optional: Redirect to login
+             isLoading = false;
+        }
+    }
+
+    private void OpenEditModal() => isEditModalOpen = true;
+    private void OpenDeleteModal() => isDeleteModalOpen = true;
+    private void OpenGenerateModal() => isGenerateModalOpen = true;
+
+    private void CloseEditModal() => isEditModalOpen = false;
+    private void CloseDeleteModal() => isDeleteModalOpen = false;
+    private void CloseGenerateModal() => isGenerateModalOpen = false;
+
+    private async Task HandleEditSave(NoteEditViewModel updatedNoteModel)
+    {
+        errorMessage = null; // Clear previous errors
+        if (currentNote == null)
+        {
+            errorMessage = "Cannot save, original note data is missing.";
+            isEditModalOpen = false; // Close modal even if error happens
+            return;
+        }
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrEmpty(userId))
+        {
+             errorMessage = "User ID not found, cannot save note.";
+             isEditModalOpen = false; // Close modal
+             return;
+        }
+
+        var updateRequest = new UpdateNoteRequest
+        {
+            Title = updatedNoteModel.Title,
+            Content = updatedNoteModel.Content
+        };
+
+        try
+        {
+            var updatedNoteDto = await NoteSvc.UpdateNoteAsync(userId, currentNote.Id, updateRequest);
+            if (updatedNoteDto != null)
+            {
+                currentNote = updatedNoteDto; // Update the displayed note
+                isEditModalOpen = false; // Close modal on success
+            }
+            else
+            {
+                // This might happen if the service returns null for specific non-exception errors
+                 errorMessage = "Failed to update the note. Please try again.";
+                 // Keep modal open? Or close it? Let's close it for now.
+                 isEditModalOpen = false;
+            }
+        }
+        // TODO: Catch specific exceptions (e.g., ApiException for 400 Bad Request/Validation from server)
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating note: {ex.Message}");
+            // Display error message. We might want to keep the modal open
+            // and display the error message within the modal itself in a future refinement.
+            errorMessage = "An error occurred while saving the note.";
+             isEditModalOpen = false; // Close modal for now on error
+        }
+        finally
+        {
+            await InvokeAsync(StateHasChanged); // Ensure UI updates (error message or updated note details)
+        }
+    }
+
+    // New handler for the existing modal's OnConfirm event
+    private async Task HandleDeleteConfirmedAction()
+    {
+        isDeleteModalOpen = false; // Close the modal
+        errorMessage = null; // Clear previous errors
+
+        if (currentNote == null) {
+            errorMessage = "Cannot delete, note data is missing.";
+            return;
+        }
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrEmpty(userId))
+        {
+            errorMessage = "User ID not found, cannot delete note.";
+            return;
+        }
+
+        try
+        {
+            bool success = await NoteSvc.DeleteNoteAsync(userId, currentNote.Id);
+            if (success)
+            {
+                Navigation.NavigateTo("/notes"); // Navigate to notes list on successful deletion
+            }
+            else
+            {
+                // The service might return false instead of throwing for some errors (e.g., concurrency issues?)
+                 errorMessage = "Failed to delete the note. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log exception ex
+            Console.WriteLine($"Error deleting note: {ex.Message}");
+            errorMessage = "An error occurred while deleting the note.";
+            // TODO: Add specific exception handling (e.g., 403/404 if service throws)
+        }
+        finally
+        {
+             await InvokeAsync(StateHasChanged); // Ensure UI updates with error message if needed
+        }
+    }
+
+    // Reference nested class via outer class
+    private async Task HandleGeneratePlan(GeneratePlanModal.GeneratePlanInputModel planInput)
+    {
+        errorMessage = null; // Clear previous errors
+
+        if (currentNote == null)
+        {
+            errorMessage = "Cannot generate plan, note data is missing.";
+            isGenerateModalOpen = false; // Close modal
+            return;
+        }
+
+        if (!planInput.StartDate.HasValue || !planInput.EndDate.HasValue)
+        {
+             // Should be caught by form validation, but good to double-check
+            errorMessage = "Start date and end date are required.";
+            // Keep modal open to show validation error?
+            return;
+        }
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrEmpty(userId))
+        {
+             errorMessage = "User ID not found, cannot generate plan.";
+             isGenerateModalOpen = false; // Close modal
+             return;
+        }
+
+        // Create the request object for the service
+        var request = new GeneratePlanProposalRequest
+        {
+            NoteId = currentNote.Id,
+            StartDate = new DateOnly(planInput.StartDate.Value.Year, planInput.StartDate.Value.Month, planInput.StartDate.Value.Day),
+            EndDate = new DateOnly(planInput.EndDate.Value.Year, planInput.EndDate.Value.Month, planInput.EndDate.Value.Day),
+            Budget = planInput.Budget
+        };
+
+        try
+        {
+             // Call the correct service method with the request object and userId
+            var generatedProposals = await PlanGenerationSvc.GeneratePlanProposalsAsync(request, userId);
+
+            // Check if the response list is not null and has items
+            if (generatedProposals != null && generatedProposals.Any())
+            {
+                 Console.WriteLine($"Plan proposals generated successfully. Count: {generatedProposals.Count}");
+                  // Navigate to the newly generated plan's detail page or a status page
+                 // TODO: Determine navigation logic - maybe navigate to the first proposal?
+                 // Example: Navigation.NavigateTo($"/plans/{generatedProposals.First().Id}");
+                  // For now, just close the modal and maybe show a success message (or navigate later)
+                  isGenerateModalOpen = false;
+            }
+            else
+            {
+                 errorMessage = "Failed to initiate plan generation.";
+                 isGenerateModalOpen = false; // Close modal on failure
+            }
+        }
+        catch (Exception ex)
+        {
+             Console.WriteLine($"Error initiating plan generation: {ex.Message}");
+             errorMessage = "An error occurred while starting plan generation.";
+             isGenerateModalOpen = false; // Close modal on error
+        }
+        finally
+        {
+             await InvokeAsync(StateHasChanged); // Update UI
+        }
+    }
+} 

@@ -11,6 +11,7 @@
 @using _10xVibeTravels.Data
 @using System.Security.Claims
 @using _10xVibeTravels.Responses
+@using _10xVibeTravels.Components.Shared.Modals
 @* @using _10xVibeTravels.Components.Shared // Nie jest już potrzebny dzięki _Imports.razor *@
 
 <PageTitle>Home</PageTitle>
@@ -63,7 +64,7 @@ else
     </div>
     
     @* Krok 7: Integracja QuickNoteModal *@
-    <QuickNoteModal @bind-Visible="ShowQuickNoteModal" @bind-Visible:event="VisibleChanged" OnNoteSaved="RefreshRecentNotesAsync"/>
+    <_10xVibeTravels.Components.Shared.Modals.QuickNoteModal @bind-Visible="ShowQuickNoteModal" @bind-Visible:event="VisibleChanged" OnNoteSaved="RefreshRecentNotesAsync" />
 }
 
 @code {

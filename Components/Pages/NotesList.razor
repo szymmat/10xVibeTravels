@@ -5,6 +5,7 @@
 @using _10xVibeTravels.Data
 @using _10xVibeTravels.Dtos
 @using _10xVibeTravels.Requests
+@using _10xVibeTravels.Components.Shared.Modals
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Authorization
 @using _10xVibeTravels.Components.Shared
@@ -38,22 +39,22 @@ else
     <table class="table table-striped">
         <thead>
             <tr>
-                <SortableTableHeader ColumnTitle="Title"
+                <SortableTableHeader ColumnTitle="Tytu³"
                                      SortIdentifier="title" 
                                      CurrentSortBy="@_state.SortBy"
                                      CurrentSortDirection="@_state.SortDirection"
                                      OnSortChanged="HandleSortChanged" />
-                <SortableTableHeader ColumnTitle="Created At"
+                <SortableTableHeader ColumnTitle="Utworzona"
                                      SortIdentifier="createdAt"
                                      CurrentSortBy="@_state.SortBy"
                                      CurrentSortDirection="@_state.SortDirection"
                                      OnSortChanged="HandleSortChanged" />
-                <SortableTableHeader ColumnTitle="Modified At"
+                <SortableTableHeader ColumnTitle="Zmodyfikowana"
                                      SortIdentifier="modifiedAt"
                                      CurrentSortBy="@_state.SortBy"
                                      CurrentSortDirection="@_state.SortDirection"
                                      OnSortChanged="HandleSortChanged" />
-                <th>Actions</th> @* Actions column is not sortable *@
+                <th>Akcje</th> @* Actions column is not sortable *@
             </tr>
         </thead>
         <tbody>
@@ -64,7 +65,7 @@ else
                     <td>@note.CreatedAt.ToString()</td> @* Consider formatting *@
                     <td>@note.ModifiedAt.ToString()</td> @* Consider formatting *@
                     <td>
-                        <button class="btn btn-sm btn-danger" @onclick="() => ShowDeleteModal(note.Id)">Delete</button> @* Updated onclick *@
+                        <button class="btn btn-sm btn-danger" @onclick="() => ShowDeleteModal(note.Id)">Usuñ</button> @* Updated onclick *@
                     </td>
                 </tr>
             }
