@@ -1,0 +1,72 @@
+@page "/plan-proposals/{Id:guid}"
+@rendermode InteractiveServer
+@using _10xVibeTravels.Responses
+@using _10xVibeTravels.Data
+
+<h3>Szczegóły Propozycji Planu</h3>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center my-4">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Ładowanie szczegółów...</span>
+        </div>
+    </div>
+}
+else if (errorMessage != null)
+{
+    <div class="alert alert-danger" role="alert">
+        @errorMessage
+    </div>
+}
+else if (plan != null)
+{
+    <div class="card">
+        <div class="card-header">
+            <h4 class="mb-0">@plan.Title</h4>
+        </div>
+        <div class="card-body">
+            <dl class="row">
+                <dt class="col-sm-3">Status</dt>
+                <dd class="col-sm-9">
+                    @* Assuming PlanDetailDto.Status is Data.PlanStatus enum *@
+                    <span class="badge @GetStatusBadgeClass(plan.Status)">@GetStatusText(plan.Status)</span>
+                </dd>
+
+                <dt class="col-sm-3">Daty</dt>
+                <dd class="col-sm-9">@plan.StartDate.ToString("d MMM yyyy") - @plan.EndDate.ToString("d MMM yyyy")</dd>
+
+                <dt class="col-sm-3">Budżet</dt>
+                <dd class="col-sm-9">@plan.Budget?.ToString("C", new System.Globalization.CultureInfo("pl-PL"))</dd>
+
+                <dt class="col-sm-3">Treść Planu</dt>
+                <dd class="col-sm-9">
+                    @* Display full content, potentially format whitespace/newlines *@
+                    <pre style="white-space: pre-wrap; font-family: inherit;">@plan.Content</pre>
+                </dd>
+            </dl>
+        </div>
+        <div class="card-footer">
+             <button class="btn btn-secondary" @onclick="GoBack">Wróć do listy</button>
+        </div>
+    </div>
+}
+
+@code {
+    // Helper methods for status display (could be moved to a shared utility)
+    private string GetStatusBadgeClass(_10xVibeTravels.Data.PlanStatus status) => status switch
+    {
+        _10xVibeTravels.Data.PlanStatus.Accepted => "badge bg-success",
+        _10xVibeTravels.Data.PlanStatus.Rejected => "badge bg-secondary",
+        _10xVibeTravels.Data.PlanStatus.Generated => "badge bg-info text-dark",
+        _ => "badge bg-light text-dark"
+    };
+
+    private string GetStatusText(_10xVibeTravels.Data.PlanStatus status) => status switch
+    {
+        _10xVibeTravels.Data.PlanStatus.Accepted => "Zaakceptowany",
+        _10xVibeTravels.Data.PlanStatus.Rejected => "Odrzucony",
+        _10xVibeTravels.Data.PlanStatus.Generated => "Wygenerowany",
+        _ => "Nieznany"
+    };
+} 

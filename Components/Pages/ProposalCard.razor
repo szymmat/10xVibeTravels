@@ -1,0 +1,54 @@
+@using _10xVibeTravels.Components.Pages.ViewModels
+@using _10xVibeTravels.Data
+
+<div class="@GetCardClass()" @onclick="HandleCardClick" style="cursor: pointer;">
+    <div class="card-body d-flex flex-column">
+        @if (Proposal.IsEditingTitle)
+        {
+            <div class="mb-2">
+                <label for="title-@Proposal.Id" class="form-label visually-hidden">Tytuł</label>
+                <input id="title-@Proposal.Id" @bind="editedTitle" class="form-control form-control-sm @(titleValidationError != null ? "is-invalid" : "")" placeholder="Wpisz tytuł" />
+                @if (titleValidationError != null)
+                {
+                    <div class="invalid-feedback">
+                        @titleValidationError
+                    </div>
+                }
+            </div>
+            <div>
+                 <button class="btn btn-sm btn-success me-1" @onclick="SaveTitleAsync" @onclick:stopPropagation="true" disabled="Proposal.IsLoadingAction">
+                    @if (Proposal.IsLoadingAction) {
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    } else {
+                        <i class="bi bi-check-lg">Zapisz</i> 
+                    }
+                 </button>
+                 <button class="btn btn-sm btn-secondary" @onclick="CancelEditingTitle" @onclick:stopPropagation="true" disabled="Proposal.IsLoadingAction">
+                    <i class="bi bi-x-lg"></i> Anuluj
+                 </button>
+             </div>
+        }
+        else
+        {
+            <h5 class="card-title">
+                @Proposal.Title
+                <button class="btn btn-sm btn-link p-0 ms-1 align-baseline" 
+                        @onclick="StartEditingTitle" 
+                        @onclick:stopPropagation="true" 
+                        title="Edytuj tytuł" 
+                        disabled="Proposal.IsLoadingAction">
+                    <i class="bi bi-pencil-square"></i>
+                </button>
+            </h5>
+        }
+
+        <p class="card-text"><span class="@GetStatusBadgeClass()">@GetStatusText()</span></p>
+        <p class="card-text"><small class="text-muted">@Proposal.StartDate.ToString("d MMM yyyy") - @Proposal.EndDate.ToString("d MMM yyyy")</small></p>
+        <p class="card-text"><small class="text-muted">Budżet: @Proposal.Budget.ToString("C", new System.Globalization.CultureInfo("pl-PL"))</small></p>
+        
+        @* Display only a preview of the content or full content based on requirements *@
+        <p class="card-text flex-grow-1">@Proposal.Content.Substring(0, Math.Min(Proposal.Content.Length, 150))... </p> 
+
+        @* Remove the Accept/Reject button div entirely *@
+    </div>
+</div> 

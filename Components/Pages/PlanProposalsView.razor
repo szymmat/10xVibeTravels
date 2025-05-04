@@ -1,0 +1,61 @@
+@page "/plan-proposals"
+@rendermode InteractiveServer
+@using _10xVibeTravels.Components.Pages.ViewModels
+@using _10xVibeTravels.Components.Pages
+@using _10xVibeTravels.Data
+
+<h3>Propozycje Planów Podróży</h3>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center my-4">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Ładowanie propozycji...</span>
+        </div>
+    </div>
+}
+else if (pageError != null)
+{
+    <div class="alert alert-danger">@pageError</div> @* TODO: Replace with ErrorMessageDisplay component *@
+}
+else if (!ProposalsList.Any())
+{
+    <p>Nie znaleziono żadnych propozycji planów.</p> @* Polish Text *@
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var proposalVM in ProposalsList)
+        {
+            <div class="col-lg-4 col-md-6 mb-4 d-flex flex-column">
+                 @* Use ProposalCard component (no OnProposalUpdated needed) *@
+                 <ProposalCard Proposal="proposalVM" />
+
+                 @* Button container below the card *@
+                 <div class="d-grid gap-2 d-sm-flex justify-content-sm-between mt-2">
+                     <button class="btn btn-sm btn-danger flex-sm-fill" 
+                             @onclick="() => HandleRejectAsync(proposalVM)">
+                        @if (proposalVM.IsLoadingAction && proposalVM.Status != PlanStatus.Accepted) { // Use Data.PlanStatus
+                             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> <span>Odrzucanie...</span>
+                        } else {
+                             <i class="bi bi-x-circle">Odrzuć</i>
+                        }
+                     </button>
+                     <button class="btn btn-sm btn-success flex-sm-fill" 
+                             @onclick="() => HandleAcceptAsync(proposalVM)">
+                        @if (proposalVM.IsLoadingAction && proposalVM.Status != PlanStatus.Rejected) { // Use Data.PlanStatus
+                             <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> <span>Akceptowanie...</span>
+                        } else {
+                             <i class="bi bi-check-circle">Akceptuj</i> 
+                        }
+                     </button>
+                 </div>
+            </div>
+        }
+    </div>
+
+    @if (hasInteracted)
+    {
+        <button class="btn btn-primary mt-3" @onclick="NavigateToPlans">Zakończ i zobacz zapisane plany</button> @* Polish Text *@
+    }
+} 

@@ -3,6 +3,7 @@ using _10xVibeTravels.Components.Account;
 using _10xVibeTravels.Data;
 using _10xVibeTravels.Interfaces;
 using _10xVibeTravels.Services;
+using Blazored.Toast;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -34,6 +35,8 @@ namespace _10xVibeTravels
                 })
                 .AddIdentityCookies();
 
+            builder.Services.AddHttpClient();
+            builder.Services.AddBlazoredToast();
             builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
             builder.Services.AddDatabaseDeveloperPageExceptionFilter();
