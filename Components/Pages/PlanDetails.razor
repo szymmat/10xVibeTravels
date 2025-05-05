@@ -1,0 +1,8 @@
+@page "/plans/{id:guid}"
+@attribute [Authorize]
+
+<h3>PlanDetails</h3>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+} 
