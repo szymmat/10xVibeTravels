@@ -11,25 +11,25 @@
                 <EditForm Model="@editModel" OnValidSubmit="HandleValidSubmit">
                     <DataAnnotationsValidator />
                     <div class="modal-header">
-                        <h5 class="modal-title">Edit Note</h5>
+                        <h5 class="modal-title">Edytuj notatkę</h5>
                         <button type="button" class="btn-close" @onclick="HandleCancel" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <ValidationSummary class="mb-3" />
                         <div class="mb-3">
-                            <label for="noteTitle" class="form-label">Title</label>
+                            <label for="noteTitle" class="form-label">Tytuł</label>
                             <InputText id="noteTitle" class="form-control" @bind-Value="editModel.Title" />
                             <ValidationMessage For="() => editModel.Title" />
                         </div>
                         <div class="mb-3">
-                            <label for="noteContent" class="form-label">Content</label>
+                            <label for="noteContent" class="form-label">Treść</label>
                             <InputTextArea id="noteContent" class="form-control" @bind-Value="editModel.Content" rows="6" />
                              <ValidationMessage For="() => editModel.Content" />
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" @onclick="HandleCancel">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                        <button type="button" class="btn btn-secondary" @onclick="HandleCancel">Anuluj</button>
+                        <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
                     </div>
                 </EditForm>
             </div>

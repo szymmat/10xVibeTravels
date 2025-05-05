@@ -1,8 +1,247 @@
 @page "/plans/{id:guid}"
-@attribute [Authorize]
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using _10xVibeTravels.Data
+@using _10xVibeTravels.Responses
+@using _10xVibeTravels.Dtos
+@using _10xVibeTravels.Interfaces
+@using Microsoft.AspNetCore.Components.Authorization
+@using _10xVibeTravels.Components.Shared.Modals
+@using Blazored.Toast.Services
+@* Assuming Modal and Spinner are in Shared folder *@
+@using _10xVibeTravels.Components.Shared
 
-<h3>PlanDetails</h3>
+@inject NavigationManager NavigationManager
+@inject IToastService ToastService
+@inject IPlanService PlanService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<h3>Plan Details</h3>
+
+@if (isLoading && plan == null) // Show spinner only on initial load
+{
+    <LoadingSpinner /> @* Assuming LoadingSpinner component exists *@
+}
+else if (errorMessage != null)
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+else if (plan != null)
+{
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">@plan.Title</h4>
+            <span class="badge @GetStatusBadgeClass(plan.Status)">@plan.Status.ToString()</span>
+        </div>
+        <div class="card-body">
+            <p><strong>Data rozpoczęcia:</strong> @plan.StartDate.ToString("yyyy-MM-dd")</p>
+            <p><strong>Data zakończenia:</strong> @plan.EndDate.ToString("yyyy-MM-dd")</p>
+            <p><strong>Budżet:</strong> @(plan.Budget.ToString())</p>
+            <hr />
+
+            @if (isEditing)
+            {
+                 <div class="mb-3">
+                    <label for="planContentEditor" class="form-label">Treść planu:</label>
+                    <InputTextArea id="planContentEditor" @bind-Value="editedContent" class="form-control" rows="15" />
+                </div>
+                <button class="btn btn-primary me-2" @onclick="SaveChanges" disabled="@isLoading">Zapisz Zmiany @(isLoading ? "..." : "")</button>
+                <button class="btn btn-secondary" @onclick="CancelEdit" disabled="@isLoading">Anuluj</button>
+            }
+            else
+            {
+                <div class="mb-3">
+                    <p><strong>Treść planu:</strong></p>
+                    <pre style="white-space: pre-wrap; word-wrap: break-word; background-color: #f8f9fa; border: 1px solid #dee2e6; padding: 10px; border-radius: 5px;">@plan.Content</pre>
+                </div>
+                 <div class="mt-3">
+                    @if (plan.Status == PlanStatus.Accepted)
+                    {
+                        <button class="btn btn-secondary me-2" @onclick="StartEditing" disabled="@isLoading">Edytuj Treść</button>
+                    }
+                    @* Delete Button - Placed next to edit or as primary action if not editable *@
+                    <button class="btn btn-danger" @onclick="RequestDelete" disabled="@isLoading">Usuń Plan @(isLoading ? "..." : "")</button>
+                 </div>
+            }
+        </div>
+        <div class="card-footer text-muted">
+            <small>Utworzono: @plan.CreatedAt.ToString("yyyy-MM-dd HH:mm") | Zmodyfikowano: @plan.ModifiedAt.ToString("yyyy-MM-dd HH:mm")</small>
+        </div>
+    </div>
+}
+else
+{
+     <p>Plan not found.</p> // Fallback if no error message is set but plan is null
+}
+
+@* Confirmation Modal Instance *@
+<DeleteConfirmationModal 
+    IsVisible="isDeleteModalVisible" 
+    OnConfirm="HandleDeleteConfirmed" 
+    OnCancel="CloseDeleteModal" />
 
 @code {
     [Parameter] public Guid Id { get; set; }
+
+    private PlanDetailDto? plan;
+    private bool isLoading = true;
+    private bool isEditing = false;
+    private string? editedContent;
+    private string? errorMessage;
+    private bool isDeleteModalVisible = false; // State for modal visibility
+    private string? currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated ?? false)
+        {
+            // Get user ID - Adjust claim type if necessary
+            currentUserId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        }
+
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            errorMessage = "Nie można zidentyfikować użytkownika.";
+            isLoading = false;
+            return;
+        }
+
+        try
+        {
+            plan = await PlanService.GetPlanByIdAsync(currentUserId, Id);
+
+            if (plan == null)
+            {
+                // PlanService returns null if not found or forbidden, let's show a generic message
+                // Or we could attempt to differentiate based on logs if the service provided more info
+                 errorMessage = "Plan nie został znaleziony lub nie masz do niego dostępu.";
+            }
+        }
+        catch (Exception ex) // Catch potential exceptions from the service call
+        {
+            // Log the exception ex
+            errorMessage = $"Wystąpił nieoczekiwany błąd podczas ładowania planu: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetStatusBadgeClass(PlanStatus status)
+    {
+        return status switch
+        {
+            PlanStatus.Generated => "bg-info",
+            PlanStatus.Accepted => "bg-success",
+            PlanStatus.Rejected => "bg-danger",
+            _ => "bg-secondary"
+        };
+    }
+
+    private void StartEditing()
+    {
+        if (plan?.Status == PlanStatus.Accepted)
+        {
+            isEditing = true;
+            editedContent = plan.Content;
+        }
+    }
+
+    private void CancelEdit()
+    {
+        isEditing = false;
+        editedContent = null;
+    }
+
+    private async Task SaveChanges()
+    {
+        if (!isEditing || plan == null || editedContent == null || string.IsNullOrEmpty(currentUserId))
+        {
+            return;
+        }
+
+        isLoading = true;
+        var updateDto = new UpdatePlanDto { Content = editedContent };
+
+        try
+        {
+            var (updatedPlan, errorMsg) = await PlanService.UpdatePlanAsync(currentUserId, plan.Id, updateDto);
+
+            if (updatedPlan != null)
+            {
+                plan = updatedPlan; // Update local state
+                isEditing = false;
+                editedContent = null;
+                ToastService.ShowSuccess("Zmiany zapisane pomyślnie.");
+            }
+            else
+            {
+                // Use the error message from the service
+                ToastService.ShowError(errorMsg ?? "Wystąpił nieznany błąd podczas zapisywania.");
+            }
+        }
+        catch (Exception ex) // Catch potential exceptions from the service call
+        {
+            // Log the exception ex
+            ToastService.ShowError($"Wystąpił nieoczekiwany błąd podczas zapisywania: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void RequestDelete()
+    {
+        isDeleteModalVisible = true; // Show modal by changing state
+    }
+
+    private void CloseDeleteModal()
+    {
+        isDeleteModalVisible = false; // Hide modal
+    }
+
+    private async Task HandleDeleteConfirmed()
+    {
+        if (plan == null || string.IsNullOrEmpty(currentUserId)) return;
+
+        isLoading = true;
+        isDeleteModalVisible = false; // Hide modal immediately
+
+        try
+        {
+            var (success, errorMsg) = await PlanService.DeletePlanAsync(currentUserId, plan.Id);
+
+            if (success)
+            {
+                ToastService.ShowSuccess("Plan został usunięty.");
+                NavigationManager.NavigateTo("/plans"); // Navigate away
+            }
+            else
+            {
+                // Service currently always returns true, but handle false case just in case
+                ToastService.ShowError(errorMsg ?? "Wystąpił nieznany błąd podczas usuwania.");
+            }
+        }
+        catch (Exception ex) // Catch potential exceptions from the service call
+        {
+            // Log the exception ex
+            ToastService.ShowError($"Wystąpił nieoczekiwany błąd podczas usuwania: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            // No need to set isDeleteModalVisible = false here again if handled above
+            // StateHasChanged might be needed if navigation doesn't happen on error
+            StateHasChanged(); 
+        }
+    }
 } 

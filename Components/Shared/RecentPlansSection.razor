@@ -12,7 +12,7 @@ else
         @foreach (var plan in Plans)
         {
             <li class="list-group-item">
-                <NavLink href=@($"/plans/@{plan.Id}")>@plan.Title</NavLink>
+                <NavLink href=@($"/plans/{plan.Id}")>@plan.Title</NavLink>
                  @* Można dodać np. datę modyfikacji, jeśli potrzeba: <small class="text-muted float-end">@plan.ModifiedAt.ToShortDateString()</small> *@
             </li>
         }
