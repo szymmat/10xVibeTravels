@@ -1,0 +1,310 @@
+@page "/plans"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject NavigationManager NavigationManager
+@inject IPlanService PlanService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+@using _10xVibeTravels.Dtos
+@using _10xVibeTravels.Data
+@using _10xVibeTravels.Requests @* Added for PlanListQueryParameters *@
+@using _10xVibeTravels.Interfaces @* Added for IPlanService *@
+@using Microsoft.AspNetCore.Components.Authorization @* Added for AuthenticationStateProvider *@
+@using System.Security.Claims @* Added for ClaimsPrincipal *@
+@using _10xVibeTravels.Components.Shared @* Added for SortableTableHeader *@
+@using _10xVibeTravels.Components.Shared.Modals @* Added for DeleteConfirmationModal *@
+@using Microsoft.AspNetCore.WebUtilities
+@using _10xVibeTravels.Responses
+
+<h3>Lista Planów Podróży</h3>
+
+@if (isLoading)
+{
+    <p><em>Ładowanie...</em></p> @* Placeholder for LoadingSpinner *@
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div> @* Placeholder for ErrorDisplay *@
+}
+else
+{
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <label for="statusFilter" class="form-label">Filtruj według statusu:</label>
+            <select id="statusFilter" class="form-select" @bind="currentStatusFilter" @bind:after="HandleFilterChange">
+                <option value="@PlanStatus.Accepted">Zaakceptowane</option>
+                <option value="@PlanStatus.Rejected">Odrzucone</option>
+            </select>
+        </div>
+    </div>
+
+    @* Table and pagination will be added here in next steps *@
+    if (paginatedPlans == null || !paginatedPlans.Items.Any())
+    {
+        <div class="text-center p-4">
+             <p>Nie znaleziono żadnych planów spełniających wybrane kryteria.</p>
+             @* Placeholder for a more graphical EmptyState component if needed later *@
+        </div>
+    }
+    else
+    {
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <SortableTableHeader ColumnTitle="Tytuł" 
+                                         SortIdentifier="title" 
+                                         CurrentSortBy="@currentSortBy" 
+                                         CurrentSortDirection="@currentSortDirection" 
+                                         OnSortChanged="HandleSortChange" />
+                    <th>Status</th>
+                    <SortableTableHeader ColumnTitle="Data modyfikacji" 
+                                         SortIdentifier="modifiedAt" 
+                                         CurrentSortBy="@currentSortBy" 
+                                         CurrentSortDirection="@currentSortDirection" 
+                                         OnSortChanged="HandleSortChange" />
+                    <SortableTableHeader ColumnTitle="Data utworzenia" 
+                                         SortIdentifier="createdAt" 
+                                         CurrentSortBy="@currentSortBy" 
+                                         CurrentSortDirection="@currentSortDirection" 
+                                         OnSortChanged="HandleSortChange" />
+                    <th>Akcje</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var plan in paginatedPlans.Items)
+                {
+                    <tr>
+                        <td>
+                            <NavLink href=@($"/plans/{plan.Id}")>@plan.Title</NavLink>
+                        </td>
+                        <td>
+                            <span class="badge @GetStatusBadgeClass(plan.Status)">@GetStatusDisplayName(plan.Status)</span>
+                        </td>
+                        <td>@plan.ModifiedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>@plan.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>
+                            <button class="btn btn-danger" @onclick="@(() => ShowDeleteModal(plan))" title="Usuń plan">
+                                <i class="fas fa-trash"></i> Usuń
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        
+        @* Pagination controls will be added here *@
+        <nav aria-label="Plan list navigation">
+            <ul class="pagination justify-content-center">
+                <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => HandlePageChange(currentPage - 1)" disabled="@(currentPage == 1)">Poprzednia</button>
+                </li>
+                
+                @* Optional: Add page number links here if needed in the future *@
+
+                <li class="page-item">
+                    <span class="page-link">Strona @currentPage z @(paginatedPlans?.TotalPages ?? 1)</span>
+                </li>
+
+                <li class="page-item @(currentPage == paginatedPlans?.TotalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => HandlePageChange(currentPage + 1)" disabled="@(currentPage == paginatedPlans?.TotalPages)">Następna</button>
+                </li>
+            </ul>
+        </nav>
+    }
+}
+
+@* Add Delete Confirmation Modal *@
+<DeleteConfirmationModal IsVisible="showDeleteModal"
+                         OnConfirm="ConfirmDelete"
+                         OnCancel="CancelDelete" />
+
+@code {
+    [CascadingParameter] public Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+    
+    private PaginatedResult<PlanListItemDto>? paginatedPlans;
+    private bool isLoading = true;
+    private string? errorMessage;
+    private PlanStatus currentStatusFilter = PlanStatus.Accepted; // Default filter
+    private string currentSortBy = "modifiedAt";
+    private string currentSortDirection = "desc";
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private PlanListItemDto? planToDelete;
+    private bool showDeleteModal;
+
+    // Dictionary for Status Display Names
+    private readonly Dictionary<PlanStatus, string> StatusDisplayNames = new()
+    {
+        { PlanStatus.Generated, "Wygenerowany" },
+        { PlanStatus.Accepted, "Zaakceptowany" },
+        { PlanStatus.Rejected, "Odrzucony" }
+    };
+
+    // Dictionary for Status Badge Classes
+    private readonly Dictionary<PlanStatus, string> StatusBadgeClasses = new()
+    {
+        { PlanStatus.Generated, "bg-secondary" },
+        { PlanStatus.Accepted, "bg-success" },
+        { PlanStatus.Rejected, "bg-danger" }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPlansAsync();
+    }
+
+    private async Task LoadPlansAsync()
+    {
+        var authState = await AuthenticationStateTask!;
+        var user = authState.User;
+
+        if (!user.Identity?.IsAuthenticated ?? true)
+        {
+            NavigationManager.NavigateTo("Account/Login"); // Use extension method for clarity
+            return;
+        }
+
+        var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null)
+        {
+             errorMessage = "Nie można zidentyfikować użytkownika.";
+             isLoading = false;
+             return;
+        }
+
+        isLoading = true;
+        errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var queryParams = new PlanListQueryParameters
+            {
+                Status = currentStatusFilter.ToString(),
+                SortBy = currentSortBy,
+                SortDirection = currentSortDirection,
+                Page = currentPage,
+                PageSize = pageSize
+            };
+
+            paginatedPlans = await PlanService.GetPlansAsync(userId, queryParams);
+        }
+        // No need for specific 401 handling here, as Authorize attribute and initial check should prevent it.
+        // The service might handle other specific errors (like validation).
+        catch (Exception ex) // Catch potential exceptions from the service layer
+        {
+            errorMessage = $"Wystąpił nieoczekiwany błąd podczas ładowania planów: {ex.Message}";
+            Console.WriteLine(ex); // Log the full error
+            paginatedPlans = null; // Ensure data is cleared on error
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleFilterChange()
+    {
+        currentPage = 1;
+        await LoadPlansAsync();
+    }
+
+    private async Task HandlePageChange(int newPage)
+    {
+        if (paginatedPlans != null && newPage >= 1 && newPage <= paginatedPlans.TotalPages)
+        {
+            currentPage = newPage;
+            await LoadPlansAsync();
+        }
+    }
+
+    private async Task HandleSortChange((string SortBy, string SortDirection) args)
+    {
+        currentSortBy = args.SortBy;
+        currentSortDirection = args.SortDirection;
+        currentPage = 1;
+        await LoadPlansAsync();
+    }
+
+    private string GetStatusBadgeClass(PlanStatus status)
+    {
+        return StatusBadgeClasses.TryGetValue(status, out var cssClass) ? cssClass : "bg-light text-dark";
+    }
+    
+    private string GetStatusDisplayName(PlanStatus status)
+    {
+        return StatusDisplayNames.TryGetValue(status, out var displayName) ? displayName : status.ToString();
+    }
+
+    private void ShowDeleteModal(PlanListItemDto plan)
+    {
+        planToDelete = plan;
+        showDeleteModal = true;
+        StateHasChanged();
+    }
+
+    private void CancelDelete()
+    {
+        planToDelete = null;
+        showDeleteModal = false;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (planToDelete == null) return;
+
+        var authState = await AuthenticationStateTask!;
+        var user = authState.User;
+
+        if (!user.Identity?.IsAuthenticated ?? true)
+        {
+            NavigationManager.NavigateTo("Account/Login");
+            return;
+        }
+
+        var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+         if (userId == null)
+        {
+             errorMessage = "Nie można zidentyfikować użytkownika do usunięcia planu.";
+             showDeleteModal = false; // Hide modal on error
+             StateHasChanged();
+             return;
+        }
+
+        var planIdToDelete = planToDelete.Id;
+        planToDelete = null;
+        showDeleteModal = false;
+        isLoading = true;
+        errorMessage = null; // Clear previous errors
+        StateHasChanged();
+
+        try
+        {
+            var (success, error) = await PlanService.DeletePlanAsync(userId, planIdToDelete);
+
+            if (!success)
+            {
+                errorMessage = error ?? "Wystąpił nieznany błąd podczas usuwania planu.";
+            }
+            else
+            {
+                // Reload data after successful deletion
+                currentPage = 1; // Reset to page 1
+                await LoadPlansAsync(); // Refresh the list
+                // Optionally add a success message/toast here
+            }
+        }
+        catch (Exception ex) // Catch potential exceptions from the service layer
+        {
+            errorMessage = $"Wystąpił nieoczekiwany błąd podczas usuwania planu: {ex.Message}";
+            Console.WriteLine(ex); // Log the full error
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+} 
