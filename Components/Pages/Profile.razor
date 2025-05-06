@@ -1,0 +1,28 @@
+@page "/profile"
+@inherits ProfilePageBase
+@rendermode InteractiveServer
+
+<PageTitle>Profil Użytkownika</PageTitle>
+
+<h1>Mój Profil Podróżnika</h1>
+
+@if (isLoading)
+{
+    <LoadingSpinner />
+}
+else
+{
+    <PromptToCompleteProfile Visible="showPrompt" 
+                             OnDismiss="HandlePromptDismiss" 
+                             OnFillProfile="HandlePromptFillProfile" />
+    <div id="profile-form-container">
+        <ProfileForm Model="model" 
+                     TravelStyles="travelStyles" 
+                     Intensities="intensities" 
+                     InterestsOptions="interestsOptions"
+                     OnSavePreferences="SavePreferencesAsync"
+                     OnSaveInterests="SaveInterestsAsync"
+                     IsSavingPreferences="isSavingPreferences"
+                     IsSavingInterests="isSavingInterests" />
+    </div>
+} 

@@ -1,0 +1,72 @@
+@inherits ProfileFormBase
+@rendermode InteractiveServer
+
+<EditForm EditContext="EditContext" OnValidSubmit="HandleValidSavePreferences">
+    <DataAnnotationsValidator />
+
+    <div class="mb-3">
+        <label for="budget" class="form-label">Twój budżet na podróż w PLN (opcjonalnie)</label>
+        <InputNumber id="budget" @bind-Value="Model.Budget" class="form-control" />
+        <ValidationMessage For="() => Model.Budget" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Preferowany styl podróży (opcjonalnie)</label>
+        <InputRadioGroup @bind-Value="Model.TravelStyleId">
+            @foreach (var style in TravelStyles)
+            {
+                <div class="form-check">
+                    <InputRadio class="form-check-input" id="@style.Id" Value="style.Id" />
+                    <label class="form-check-label" for="@style.Id">@style.Name</label>
+                </div>
+            }
+        </InputRadioGroup>
+        <ValidationMessage For="() => Model.TravelStyleId" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Preferowana intensywność podróży (opcjonalnie)</label>
+        <InputRadioGroup @bind-Value="Model.IntensityId">
+            @foreach (var intensity in Intensities)
+            {
+                <div class="form-check">
+                    <InputRadio class="form-check-input" id="@intensity.Id" Value="intensity.Id" />
+                    <label class="form-check-label" for="@intensity.Id">@intensity.Name</label>
+                </div>
+            }
+        </InputRadioGroup>
+        <ValidationMessage For="() => Model.IntensityId" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Twoje zainteresowania (opcjonalnie)</label>
+        <InterestsMultiSelect @bind-Value="Model.Interests" Options="InterestsOptions" />
+        <ValidationMessage For="() => Model.Interests" />
+    </div>
+
+    <div class="mb-3">
+        <button type="submit" class="btn btn-primary me-2" disabled="@(IsSavingPreferences || (EditContext != null && !EditContext.Validate()))">
+            @if (IsSavingPreferences)
+            {
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                <span class="visually-hidden">Zapisywanie...</span>
+            }
+            else
+            {
+                <text>Zapisz preferencje</text>
+            }
+        </button>
+        
+        <button type="button" class="btn btn-secondary" @onclick="HandleSaveInterests" disabled="@(IsSavingInterests || (EditContext != null && !EditContext.Validate()))">
+            @if (IsSavingInterests)
+            {
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                <span class="visually-hidden">Zapisywanie...</span>
+            }
+            else
+            {
+                <text>Zapisz zainteresowania</text>
+            }
+        </button>
+    </div>
+</EditForm> 

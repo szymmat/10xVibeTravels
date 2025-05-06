@@ -1,6 +1,11 @@
 <!-- Generate Plan Modal -->
 @using System.ComponentModel.DataAnnotations
+@using _10xVibeTravels.Interfaces
+@using Microsoft.AspNetCore.Components.Authorization
 @namespace _10xVibeTravels.Components.Shared.Modals
+@inject NavigationManager NavigationManager
+@inject IUserProfileService UserProfileService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
 @if (IsVisible)
 {
@@ -10,30 +15,30 @@
                 <EditForm Model="@inputModel" OnValidSubmit="HandleValidSubmit">
                     <DataAnnotationsValidator />
                     <div class="modal-header">
-                        <h5 class="modal-title">Generate Travel Plan</h5>
+                        <h5 class="modal-title">Generuj plan podróży</h5>
                         <button type="button" class="btn-close" @onclick="HandleCancel" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <ValidationSummary class="mb-3" />
                         <div class="mb-3">
-                            <label for="startDate" class="form-label">Start Date</label>
+                            <label for="startDate" class="form-label">Data początkowa</label>
                             <InputDate id="startDate" class="form-control" @bind-Value="inputModel.StartDate" />
                             <ValidationMessage For="() => inputModel.StartDate" />
                         </div>
                         <div class="mb-3">
-                            <label for="endDate" class="form-label">End Date</label>
+                            <label for="endDate" class="form-label">Data końcowa</label>
                             <InputDate id="endDate" class="form-control" @bind-Value="inputModel.EndDate" />
                             <ValidationMessage For="() => inputModel.EndDate" />
                         </div>
                         <div class="mb-3">
-                            <label for="budget" class="form-label">Budget (Optional)</label>
+                            <label for="budget" class="form-label">Budżet w PLN (opcjonalnie)</label>
                             <InputNumber id="budget" class="form-control" @bind-Value="inputModel.Budget" ParsingErrorMessage="Please enter a valid number for the budget." />
                             <ValidationMessage For="() => inputModel.Budget" />
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" @onclick="HandleCancel">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Generate Plan</button>
+                        <button type="button" class="btn btn-secondary" @onclick="HandleCancel">Anuluj</button>
+                        <button type="submit" class="btn btn-primary">Generuj plan</button>
                     </div>
                 </EditForm>
             </div>
@@ -49,21 +54,37 @@
 
     private GeneratePlanInputModel inputModel = new GeneratePlanInputModel();
 
-    // Reset form when it becomes visible
-    protected override void OnParametersSet()
+    // Reset form when it becomes visible and fetch user profile budget
+    protected override async Task OnParametersSetAsync()
     {
         if (IsVisible)
         {
-             // Reset the model to default values each time the modal is opened
+            // Reset the model to default values each time the modal is opened
             inputModel = new GeneratePlanInputModel();
-             // Optionally set StartDate to today, etc.
-            // inputModel.StartDate = DateTime.Today;
+
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity != null && user.Identity.IsAuthenticated)
+            {
+                var userId = user.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (!string.IsNullOrEmpty(userId))
+                {
+                    var userProfile = await UserProfileService.GetUserProfileAsync(userId);
+                    if (userProfile?.Budget != null)
+                    {
+                        inputModel.Budget = userProfile.Budget;
+                    }
+                }
+            }
+            // inputModel.StartDate = DateTime.Today; // Existing commented out line
         }
     }
 
     private async Task HandleValidSubmit()
     {
         await OnGenerate.InvokeAsync(inputModel);
+        NavigationManager.NavigateTo("/plan-proposals");
     }
 
     private async Task HandleCancel()

@@ -1,0 +1,11 @@
+@inherits InterestsMultiSelectBase
+
+<select multiple class="form-select" @bind="SelectedStringValues">
+    @if (Options != null)
+    {
+        foreach (var option in Options)
+        {
+            <option value="@option.Id.ToString()">@option.Name</option>
+        }
+    }
+</select>

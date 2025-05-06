@@ -1,0 +1,14 @@
+@inherits PromptToCompleteProfileBase
+
+@if (Visible)
+{
+    <div class="alert alert-info d-flex justify-content-between align-items-center" role="alert">
+        <div>
+            Aby w pełni korzystać z aplikacji, prosimy o uzupełnienie swojego profilu podróżnika.
+        </div>
+        <div>
+            <button class="btn btn-primary btn-sm me-2" @onclick="HandleFillProfileClick">Uzupełnij profil</button>
+            <button type="button" class="btn-close" aria-label="Close" @onclick="HandleDismissClick"></button>
+        </div>
+    </div>
+} 
