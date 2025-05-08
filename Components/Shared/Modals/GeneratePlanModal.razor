@@ -37,8 +37,18 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" @onclick="HandleCancel">Anuluj</button>
-                        <button type="submit" class="btn btn-primary">Generuj plan</button>
+                        <button type="button" class="btn btn-secondary" @onclick="HandleCancel" disabled="@IsLoading">Anuluj</button>
+                        <button type="submit" class="btn btn-primary" disabled="@IsLoading">
+                            @if (IsLoading)
+                            {
+                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                <span class="visually-hidden">Loading...</span>
+                            }
+                            else
+                            {
+                                @("Generuj plan")
+                            }
+                        </button>
                     </div>
                 </EditForm>
             </div>
@@ -53,6 +63,7 @@
     [Parameter] public EventCallback OnCancel { get; set; }
 
     private GeneratePlanInputModel inputModel = new GeneratePlanInputModel();
+    private bool IsLoading { get; set; } // Added for loading spinner
 
     // Reset form when it becomes visible and fetch user profile budget
     protected override async Task OnParametersSetAsync()
@@ -83,7 +94,9 @@
 
     private async Task HandleValidSubmit()
     {
+        IsLoading = true; // Show spinner
         await OnGenerate.InvokeAsync(inputModel);
+        IsLoading = false; // Hide spinner before navigation
         NavigationManager.NavigateTo("/plan-proposals");
     }
 

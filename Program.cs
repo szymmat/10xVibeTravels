@@ -36,6 +36,36 @@ namespace _10xVibeTravels
                 .AddIdentityCookies();
 
             builder.Services.AddHttpClient();
+            /*builder.Services.AddHttpClient<_10xVibeTravels.Services.OpenRouterService>((sp, client) => // Use fully qualified name if any ambiguity
+{
+    var configuration = sp.GetRequiredService<IConfiguration>();
+    var baseUrl = configuration["OpenRouter:BaseUrl"]; // Should be "https://openrouter.ai/api/v1"
+    var apiKey = configuration["OpenRouter:ApiKey"];
+
+    if (string.IsNullOrWhiteSpace(baseUrl))
+    {
+        // Consider logging this error as well
+        throw new InvalidOperationException("OpenRouter:BaseUrl is not configured in appsettings.json.");
+    }
+    if (string.IsNullOrWhiteSpace(apiKey))
+    {
+        // Consider logging this error
+        throw new InvalidOperationException("OpenRouter:ApiKey is not configured in appsettings.json.");
+    }
+
+    client.BaseAddress = new Uri(baseUrl); // BaseAddress will be "https://openrouter.ai/api/v1"
+    client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+})*/;
+
+// You still need to register the service itself, e.g.:
+builder.Services.AddScoped<_10xVibeTravels.Services.OpenRouterService>();
+
+// The Configure<OpenRouterSettings> can remain if you want to use IOptions<OpenRouterSettings> elsewhere,
+// but OpenRouterService will not use it directly.
+// Ensure the section name matches your appsettings.json ("OpenRouter").
+builder.Services.Configure<_10xVibeTravels.Models.OpenRouterSettings>(
+    builder.Configuration.GetSection("OpenRouter")
+);
             builder.Services.AddBlazoredToast();
             builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -50,7 +80,7 @@ namespace _10xVibeTravels
 
             // Register custom application services
             builder.Services.AddScoped<IPlanGenerationService, PlanGenerationService>();
-            builder.Services.AddScoped<IOpenRouterService, MockOpenRouterService>();
+            builder.Services.AddScoped<IOpenRouterService, OpenRouterService>();
             builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 
             // Register dictionary services

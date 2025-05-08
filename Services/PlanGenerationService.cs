@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using _10xVibeTravels.Requests;
 using _10xVibeTravels.Responses;
 using System.Text;
+using _10xVibeTravels.Dtos;
+using _10xVibeTravels.Models;
 
 namespace _10xVibeTravels.Services;
 
@@ -90,45 +92,90 @@ public class PlanGenerationService : IPlanGenerationService
         }
         // Note: Range validation (>=0) is handled by model validation attributes
 
-        // --- Step 5d: Construct AI prompt --- 
-        var promptBuilder = new StringBuilder();
-        promptBuilder.AppendLine("Generate 3 distinct travel plan proposals based on the following details:");
-        promptBuilder.AppendLine("\n**Destination Idea & Notes:**");
-        promptBuilder.AppendLine(note.Content); // Use the content of the source note
-        promptBuilder.AppendLine("\n**Travel Dates:**");
-        promptBuilder.AppendLine($"Start Date: {request.StartDate:yyyy-MM-dd}");
-        promptBuilder.AppendLine($"End Date: {request.EndDate:yyyy-MM-dd}");
-        promptBuilder.AppendLine("\n**Budget:**");
-        promptBuilder.AppendLine(finalBudget.ToString("C")); // Format as currency
-        promptBuilder.AppendLine("\n**User Preferences:**");
+        // --- Step 5d: Construct AI prompt (user message part) --- 
+        var userMessageBuilder = new StringBuilder();
+        userMessageBuilder.AppendLine("**Destination Idea & Notes:**");
+        userMessageBuilder.AppendLine(note.Content);
+        userMessageBuilder.AppendLine("\n**Travel Dates:**");
+        userMessageBuilder.AppendLine($"Start Date: {request.StartDate:yyyy-MM-dd}");
+        userMessageBuilder.AppendLine($"End Date: {request.EndDate:yyyy-MM-dd}");
+        userMessageBuilder.AppendLine("\n**Budget:**");
+        userMessageBuilder.AppendLine(finalBudget.ToString("C"));
+        userMessageBuilder.AppendLine("\n**User Preferences:**");
         if (userProfile.TravelStyle != null)
-            promptBuilder.AppendLine($"- Travel Style: {userProfile.TravelStyle.Name}");
+            userMessageBuilder.AppendLine($"- Travel Style: {userProfile.TravelStyle.Name}");
         if (userProfile.Intensity != null)
-            promptBuilder.AppendLine($"- Intensity: {userProfile.Intensity.Name}");
-        var interests = userInterests.Select(ui => ui.Interest?.Name).ToList();
+            userMessageBuilder.AppendLine($"- Intensity: {userProfile.Intensity.Name}");
+        var interests = userInterests.Select(ui => ui.Interest?.Name).Where(name => !string.IsNullOrEmpty(name)).ToList();
         if (interests.Any())
-            promptBuilder.AppendLine($"- Interests: {string.Join(", ", interests)}");
+            userMessageBuilder.AppendLine($"- Interests: {string.Join(", ", interests)}");
         else 
-            promptBuilder.AppendLine("- Interests: Not specified");
+            userMessageBuilder.AppendLine("- Interests: Not specified");
         
-        promptBuilder.AppendLine("\nPlease provide each proposal with a clear Title and detailed Content (e.g., day-by-day itinerary).");
-        string prompt = promptBuilder.ToString();
-        _logger.LogDebug("Generated AI Prompt for user {UserId}:\n{Prompt}", userId, prompt); // Log prompt for debugging if needed
+        string userMessage = userMessageBuilder.ToString();
+        _logger.LogDebug("Generated AI User Message for user {UserId}:\n{UserMessage}", userId, userMessage);
+
+        // --- Define System Message and Response Format --- 
+        string systemMessage = "You are a travel planning assistant. " +
+                             "Your task is to generate exactly 3 distinct travel plan proposals based on the user's details. " +
+                             "Each proposal must be a JSON object with a \"Title\" (string) and \"Content\" (string, e.g., a concise day-by-day itinerary or thematic overview). " +
+                             "The final output must be a valid JSON array containing these 3 proposal objects. Do not include any other text or explanations outside the JSON array.";
+
+        var responseFormat = new ResponseFormat(
+            Type: "json_schema",
+            json_schema: new Models.JsonSchema
+            {
+                Name = "travelPlanResponse",
+                Schema = new {
+                    type = "object",
+                    properties = new {
+                        items = new {
+                            type = "array",
+                            minItems = 3,
+                            maxItems = 3,
+                            items = new {
+                                type = "object",
+                                required = new[] { "title", "content" },
+                                properties = new {
+                                    title = new { type = "string" },
+                                    content = new { type = "string" }
+                                },
+                                additionalProperties = false
+                            }
+                        }
+                    },
+                    required = new[] { "items" },
+                    additionalProperties = false
+                }
+            }
+        );
 
         // --- Step 5e: Call external AI service (IOpenRouterService) --- 
-        List<GeneratedPlanDto> generatedPlans;
+        TravelPlanAIResponse? aiServiceResponse;
+        List<_10xVibeTravels.Dtos.GeneratedPlanDto>? generatedPlans = null;
         try
         {
-            generatedPlans = await _openRouterService.GeneratePlanProposalsAsync(prompt);
+            aiServiceResponse = await _openRouterService.SendChatAsync<TravelPlanAIResponse>(
+                systemMessage: systemMessage,
+                userMessage: userMessage,
+                responseFormat: responseFormat
+            );
+
+            generatedPlans = aiServiceResponse?.Items;
+
             if (generatedPlans == null || generatedPlans.Count != 3) 
             {
-                 _logger.LogWarning("AI service returned an unexpected number of plans ({Count}) for user {UserId}", generatedPlans?.Count ?? 0, userId);
-                 // Decide if this is a hard fail or if partial results are acceptable
-                 throw new AiServiceException("AI service did not return exactly 3 plan proposals.");
+                 _logger.LogWarning("AI service returned an unexpected number of plans ({Count}) or null for user {UserId}", generatedPlans?.Count ?? 0, userId);
+                 throw new AiServiceException("AI service did not return exactly 3 valid plan proposals.");
             }
         }
-        catch (Exception ex) // Catch broader exceptions from the service call
+        catch (OpenRouterException ex)
         {
+            _logger.LogError(ex, "OpenRouterService error for user {UserId}: {ErrorMessage}", userId, ex.Message);
+            throw new AiServiceException($"Failed to generate plans due to an AI service error: {ex.Message}", ex);
+        }
+        catch (Exception ex) 
+        { 
             _logger.LogError(ex, "Error calling AI service for user {UserId}", userId);
             throw new AiServiceException("Failed to generate plans due to an AI service error.", ex);
         }
@@ -145,8 +192,8 @@ public class PlanGenerationService : IPlanGenerationService
                 StartDate = request.StartDate.ToDateTime(TimeOnly.MinValue),
                 EndDate = request.EndDate.ToDateTime(TimeOnly.MinValue),
                 Budget = finalBudget,
-                Title = generatedPlan.Title,
-                Content = generatedPlan.Content,
+                Title = generatedPlan.Title!,
+                Content = generatedPlan.Content!,
                 Status = PlanStatus.Generated.ToString(), // Assuming PlanStatus enum or constant exists
                 CreatedAt = now,
                 ModifiedAt = now

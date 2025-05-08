@@ -13,7 +13,7 @@
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
-<h3>Notes List</h3>
+<h3>Lista notatek</h3>
 
 @if (_state.IsLoading)
 {
@@ -23,14 +23,14 @@ else if (!string.IsNullOrEmpty(_state.ErrorMessage))
 {
     <div class="alert alert-danger" role="alert">
         @_state.ErrorMessage
-        <button class="btn btn-sm btn-primary ms-2" @onclick="LoadNotesAsync">Try Again</button>
+        <button class="btn btn-sm btn-primary ms-2" @onclick="LoadNotesAsync">Spróbuj ponownie</button>
     </div>
 }
 else if (_state.NotesData is null || _state.NotesData!.TotalItems == 0)
 {
     <EmptyState Message="No notes found.">
         <ChildContent>
-             <button class="btn btn-primary" @onclick="NavigateToCreate">Create First Note</button>
+             <button class="btn btn-primary" @onclick="NavigateToCreate">Utwórz pierwszą notatkę</button>
         </ChildContent>
     </EmptyState>
 }
@@ -39,7 +39,7 @@ else
     <table class="table table-striped">
         <thead>
             <tr>
-                <SortableTableHeader ColumnTitle="Tytu�"
+                <SortableTableHeader ColumnTitle="Tytuł"
                                      SortIdentifier="title" 
                                      CurrentSortBy="@_state.SortBy"
                                      CurrentSortDirection="@_state.SortDirection"
@@ -60,12 +60,12 @@ else
         <tbody>
             @foreach (var note in _state.NotesData!.Items)
             {
-                <tr>
+                <tr @ondblclick="() => NavigateToNoteDetails(note.Id)">
                     <td>@note.Title</td>
                     <td>@note.CreatedAt.ToString()</td> @* Consider formatting *@
                     <td>@note.ModifiedAt.ToString()</td> @* Consider formatting *@
                     <td>
-                        <button class="btn btn-sm btn-danger" @onclick="() => ShowDeleteModal(note.Id)">Usu�</button> @* Updated onclick *@
+                        <button class="btn btn-sm btn-danger" @onclick="() => ShowDeleteModal(note.Id)">Usuń</button> @* Updated onclick *@
                     </td>
                 </tr>
             }
@@ -282,5 +282,10 @@ else
     private void NavigateToCreate()
     {
         NavigationManager.NavigateTo("/notes/create");
+    }
+
+    private void NavigateToNoteDetails(Guid noteId)
+    {
+        NavigationManager.NavigateTo($"/notes/{noteId}");
     }
 } 
