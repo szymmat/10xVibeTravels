@@ -10,13 +10,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
     }
 
-    public DbSet<Interest> Interests { get; set; }
-    public DbSet<TravelStyle> TravelStyles { get; set; }
-    public DbSet<Intensity> Intensities { get; set; }
-    public DbSet<UserProfile> UserProfiles { get; set; }
-    public DbSet<UserInterest> UserInterests { get; set; }
-    public DbSet<Note> Notes { get; set; }
-    public DbSet<Plan> Plans { get; set; }
+    public virtual DbSet<Interest> Interests { get; set; }
+    public virtual DbSet<TravelStyle> TravelStyles { get; set; }
+    public virtual DbSet<Intensity> Intensities { get; set; }
+    public virtual DbSet<UserProfile> UserProfiles { get; set; }
+    public virtual DbSet<UserInterest> UserInterests { get; set; }
+    public virtual DbSet<Note> Notes { get; set; }
+    public virtual DbSet<Plan> Plans { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
