@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # You can specify build arguments here if needed
+        # BUILD_CONFIGURATION: Debug # Example for dev
+        BUILD_CONFIGURATION: Release
+    image: szymmat/10xvibetravels:${COMMIT_SHA:-latest}
+    container_name: 10xvibetravels_app
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount appsettings.json as read-only
+      # Ensure the source path './10xVibeTravels/appsettings.json' is correct relative to docker-compose.yml
+      - ./10xVibeTravels/appsettings.json:/app/appsettings.json:ro
+    environment:
+      # ASP.NET Core specific environment variables are set in Dockerfile
+      # Override ConnectionStrings:DefaultConnection from appsettings.json
+      - ConnectionStrings__DefaultConnection=Server=mssql;Database=VibeTravels;User ID=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true;Encrypt=false
+      # You can add other environment variables here, e.g., for OpenRouter API key if you don't want it from appsettings.json
+      # - OpenRouter__ApiKey=${OPENROUTER_API_KEY}
+    depends_on:
+      mssql:
+        condition: service_healthy # Wait for mssql to be healthy before starting app
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-CU13-ubuntu-22.04 # Use a specific CU version for production stability if desired
+    container_name: 10xvibetravels_db
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "${MSSQL_SA_PASSWORD}" # Must be a strong password, set in .env file
+      MSSQL_PID: "Express" # Or Express, Standard, Enterprise based on your license
+    ports:
+      - "1433:1433" # Expose SQL Server port to the host (optional, for direct access/management)
+    volumes:
+      - mssql_data:/var/opt/mssql # Give SQL Server more time to initialize
+    restart: unless-stopped
+    networks:
+      - app-network
+
+volumes:
+  mssql_data: # Defines the named volume for SQL Server data persistence
+
+networks:
+  app-network: # Defines the custom bridge network
+    driver: bridge 

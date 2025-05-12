@@ -9,6 +9,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inject _10xVibeTravels.Interfaces.INoteService NoteSvc
 @inject _10xVibeTravels.Interfaces.IPlanGenerationService PlanGenerationSvc
+@inject _10xVibeTravels.Interfaces.IUserProfileService UserProfileSvc
 @inject Microsoft.AspNetCore.Components.NavigationManager Navigation
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
 
@@ -38,7 +39,13 @@ else if (currentNote != null)
         <!-- Action buttons will go here -->
         <button class="btn btn-primary me-2" @onclick="OpenEditModal">Edytuj Notatkę</button>
         <button class="btn btn-danger me-2" @onclick="OpenDeleteModal">Usuń Notatkę</button>
-        <button class="btn btn-success" @onclick="OpenGenerateModal">Generuj Plan</button>
+        <button class="btn btn-success" @onclick="OpenGenerateModal" disabled="@(!userProfileExists || isLoading)">Generuj Plan</button>
+        @if (!userProfileExists && !isLoading)
+        {
+            <div class="mt-2">
+                <small>Musisz ustawić swoje preferencje podróży, aby wygenerować plan. <a href="/profile">Przejdź do profilu</a></small>
+            </div>
+        }
     </div>
 }
 else
@@ -70,6 +77,8 @@ else
     private bool isLoading = true;
     private string? errorMessage;
 
+    private bool userProfileExists = false;
+
     private bool isEditModalOpen = false;
     private bool isDeleteModalOpen = false;
     private bool isGenerateModalOpen = false;
@@ -95,6 +104,10 @@ else
 
             try
             {
+                // Fetch UserProfile
+                var userProfile = await UserProfileSvc.GetUserProfileAsync(userIdString);
+                userProfileExists = userProfile != null;
+
                 // Assuming GetNoteByIdAsync correctly handles authorization internally
                 // and throws exceptions for 403 Forbidden / 404 Not Found.
                 // If it returns null for Not Found/Forbidden, the logic needs adjustment.
