@@ -22,10 +22,7 @@ services:
       # Override ConnectionStrings:DefaultConnection from appsettings.json
       - ConnectionStrings__DefaultConnection=Server=mssql;Database=VibeTravels;User ID=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true;Encrypt=false
       # You can add other environment variables here, e.g., for OpenRouter API key if you don't want it from appsettings.json
-      # - OpenRouter__ApiKey=${OPENROUTER_API_KEY}
-    depends_on:
-      mssql:
-        condition: service_healthy # Wait for mssql to be healthy before starting app
+      # - OpenRouter__ApiKey=${OPENROUTER_API_KEY} # Wait for mssql to be healthy before starting app
     restart: unless-stopped
     networks:
       - app-network
