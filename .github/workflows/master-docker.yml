@@ -35,16 +35,46 @@ jobs:
             type=sha,prefix=
             type=raw,value=latest
 
-  deploy:
-    name: Deploy to DigitalOcean
-    needs: build-and-push
+  deploy-to-vm:
+    name: Deploy to VM
     runs-on: ubuntu-latest
     steps:
-      - name: Install doctl
-        uses: digitalocean/action-doctl@v2
-        with:
-          token: ${{ secrets.DIGITALOCEAN_APP_KEY }}
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Deploy to DigitalOcean App Platform
-        run: |
-          doctl apps create-deployment ${{ secrets.DIGITALOCEAN_APP_ID }}
+      - name: Deploy code to VM via rsync
+        uses: easingthemes/ssh-deploy@v5.0.0 # Check for the latest version
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.DO_VM_SSH_KEY }}
+          ARGS: "-avz --delete" # rsync arguments: archive, verbose, compress, delete extraneous files
+          SOURCE: "./" # Source directory from checkout (root of your repo)
+          REMOTE_HOST: ${{ secrets.DO_VM_HOST }}
+          REMOTE_USER: ${{ secrets.DO_VM_USER }}
+          TARGET: ${{ secrets.DO_VM_PROJECT_PATH }} # Target directory on your VM
+
+      - name: SSH into VM and run deployment commands
+        uses: appleboy/ssh-action@v1.0.3 # Check for the latest version
+        with:
+          host: ${{ secrets.DO_VM_HOST }}
+          username: ${{ secrets.DO_VM_USER }}
+          key: ${{ secrets.DO_VM_SSH_KEY }}
+          script: |
+            set -e # Exit immediately if a command exits with a non-zero status
+            echo "Deploying to ${{ secrets.DO_VM_PROJECT_PATH }} on ${{ secrets.DO_VM_HOST }}"
+            cd ${{ secrets.DO_VM_PROJECT_PATH }}
+            echo "Changed directory to $(pwd)"
+
+            echo "Listing files in project directory after rsync:"
+            ls -la
+
+            echo "Stopping existing Docker services (if any)..."
+            # Use 'docker-compose' if you have an older version
+            docker compose down || true # Allow to fail if no services are running (e.g., first deployment)
+
+            echo "Building and starting Docker services..."
+            # Use 'docker-compose' if you have an older version
+            docker compose up --build -d # -d for detached mode
+
+            echo "Deployment successful."
+            echo "Current Docker containers running:"
+            docker ps
