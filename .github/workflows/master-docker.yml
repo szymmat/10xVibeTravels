@@ -46,7 +46,7 @@ jobs:
         uses: easingthemes/ssh-deploy@v5.0.0 # Check for the latest version
         with:
           SSH_PRIVATE_KEY: ${{ secrets.DO_VM_SSH_KEY }}
-          ARGS: "-avz --delete" # rsync arguments: archive, verbose, compress, delete extraneous files
+          ARGS: "-avz --delete --exclude=.env --exclude=appsettings.json" # rsync arguments: archive, verbose, compress, delete extraneous files, but exclude .env and appsettings.json
           SOURCE: "./" # Source directory from checkout (root of your repo)
           REMOTE_HOST: ${{ secrets.DO_VM_HOST }}
           REMOTE_USER: ${{ secrets.DO_VM_USER }}
